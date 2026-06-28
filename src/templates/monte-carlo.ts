@@ -81,7 +81,7 @@ function run(params: ParamSet): SimResult {
   const horizon = Math.max(1, Math.round(params.horizon ?? 30));
   const steps = horizon * STEPS_PER_YEAR;
   const dt = 1 / STEPS_PER_YEAR;
-  const drends = (mu - 0.5 * sigma * sigma) * dt;
+  const logDrift = (mu - 0.5 * sigma * sigma) * dt;
   const vol = sigma * Math.sqrt(dt);
 
   const rng = mulberry32(0x9e3779b9); // fixed seed → deterministic given params
@@ -95,7 +95,7 @@ function run(params: ParamSet): SimResult {
     let s = S0;
     let min = S0;
     for (let t = 1; t <= steps; t++) {
-      s = s * Math.exp(drends + vol * gaussian(rng));
+      s = s * Math.exp(logDrift + vol * gaussian(rng));
       path[t] = s;
       if (s < min) min = s;
     }
@@ -182,7 +182,7 @@ function render2D(el: HTMLElement, sim: SimResult, opts: RenderOpts): Renderer {
     layout.shapes = [barrierShape(0, tMax, rawNum(s, 'barrier', BARRIER))];
     if (!animate) layout.xaxis = { ...(layout.xaxis as object), range: [0, tMax] };
 
-    void mount(el, traces, layout);
+    mount(el, traces, layout).catch((err) => console.error('[monte-carlo render2D] Plotly error:', err));
     if (animate) cancelReveal = revealX(el, 0, tMax);
   };
 

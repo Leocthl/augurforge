@@ -5,7 +5,6 @@
  */
 import type { OnEvent, ModelerResult, VisualizerResult } from '../contract';
 import { chat } from '../cerebras';
-import { monteCarlo } from '../../templates/monte-carlo';
 import { coerce, errMsg } from './shared';
 
 const SYSTEM =
@@ -17,7 +16,22 @@ export async function runVisualizer(
   onEvent: OnEvent,
 ): Promise<VisualizerResult> {
   onEvent({ agent: 'visualizer', status: 'start' });
-  const mockResult: VisualizerResult = monteCarlo.spec;
+  const mockResult: VisualizerResult = {
+    templateId: modeler.templateId,
+    title: 'Monte Carlo — Portfolio Ruin (GBM)',
+    subtitle: 'Geometric Brownian motion · 500 paths · simulated client-side',
+    views: ['2d', '3d'],
+    defaultView: '2d',
+    sliders: modeler.sliders,
+    explainer: {
+      entry:
+        'This shows many possible market journeys over time. Most paths grow, but some dip badly — ' +
+        'the share that falls through the floor is the "ruin" chance.',
+      expert:
+        'A GBM ensemble of 500 paths. The fan shows percentile cones; the histogram is the terminal ' +
+        'distribution. P(ruin) is the fraction breaching the barrier; 95% VaR is the 5th-percentile loss.',
+    },
+  };
   try {
     const res = await chat({
       messages: [

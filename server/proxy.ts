@@ -19,7 +19,9 @@ const BASE_URL = process.env.CEREBRAS_BASE_URL ?? 'https://api.cerebras.ai/v1';
 const MODEL = process.env.CEREBRAS_MODEL ?? 'gemma-4-31b';
 
 const app = express();
-app.use(cors());
+// Restrict CORS to the dev origin so a deployed/forwarded proxy can't have its key quota drained.
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:5173').split(',');
+app.use(cors({ origin: (origin, cb) => cb(null, !origin || ALLOWED_ORIGINS.includes(origin)) }));
 app.use(express.json({ limit: '12mb' })); // images arrive as base64 data URIs
 
 app.get('/api/health', (_req, res) => {
@@ -35,8 +37,8 @@ app.post('/api/chat', async (req, res) => {
     return;
   }
 
-  // Strip our client-only markers; pin the model to gemma-4-31b unless overridden.
-  const body = { ...req.body, model: req.body?.model ?? MODEL };
+  // Pin the model server-side (gemma-4-31b is the sole source of truth) and strip client-only markers.
+  const body = { ...req.body, model: MODEL };
   delete body.provider;
   delete body.mock;
 

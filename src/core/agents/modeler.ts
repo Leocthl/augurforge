@@ -4,10 +4,9 @@
  * STUB: returns the Monte Carlo template defaults; image is forwarded in LIVE mode.
  * TODO(branch: feat/agents): real vision prompt + strict JSON schema per BUILD_SPEC §7.
  */
-import type { OnEvent, ModelerResult, ParamSet } from '../contract';
+import type { OnEvent, ModelerResult, ParamSet, SliderDef } from '../contract';
 import { chat, type ContentPart } from '../cerebras';
 import type { PipelineInput } from '../pipeline';
-import { monteCarlo } from '../../templates/monte-carlo';
 import { coerce, describeInput, errMsg } from './shared';
 
 const SYSTEM =
@@ -18,7 +17,11 @@ const SYSTEM =
 export async function runModeler(input: PipelineInput, onEvent: OnEvent): Promise<ModelerResult> {
   onEvent({ agent: 'modeler', status: 'start' });
 
-  const sliders = monteCarlo.spec.sliders;
+  const sliders: SliderDef[] = [
+    { id: 'sigma', label: 'Volatility (σ)', min: 5, max: 40, step: 1, value: 18, unit: '%' },
+    { id: 'drift', label: 'Drift (μ)', min: -5, max: 15, step: 1, value: 7, unit: '%' },
+    { id: 'horizon', label: 'Horizon', min: 5, max: 40, step: 1, value: 30, unit: 'yr' },
+  ];
   const params: ParamSet = Object.fromEntries(sliders.map((s) => [s.id, s.value]));
   const mockResult: ModelerResult = {
     templateId: 'monte-carlo',

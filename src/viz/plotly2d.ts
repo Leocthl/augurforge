@@ -27,8 +27,8 @@ export const PLOTLY_CONFIG = { displayModeBar: false, responsive: true } as cons
 export function baseLayout(theme: Theme): Partial<Layout> {
   const font = theme === 'light' ? '#1e293b' : PALETTE.axis;
   return {
-    paper_bgcolor: 'rgba(0,0,0,0)',
-    plot_bgcolor: 'rgba(0,0,0,0)',
+    paper_bgcolor: theme === 'light' ? '#ffffff' : 'rgba(0,0,0,0)',
+    plot_bgcolor: theme === 'light' ? '#f8fafc' : 'rgba(0,0,0,0)',
     font: { color: font, family: 'Inter, system-ui, sans-serif', size: 12 },
     margin: { l: 56, r: 16, t: 16, b: 40 },
     showlegend: false,

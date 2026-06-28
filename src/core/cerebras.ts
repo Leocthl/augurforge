@@ -137,8 +137,9 @@ function chunkForStream(text: string): string[] {
 
 // ---------------------------------------------------------------------------
 // LIVE implementation — proxy + SSE passthrough. Untested until a key exists.
-// TODO(branch: feat/agents): exercise against the real Cerebras tier, confirm
-// the exact `time_info` field names on the streamed chunks.
+// TODO(branch: feat/agents): exercise against the real Cerebras tier, confirm the exact
+// `time_info` field names, and thread an AbortSignal so a superseded cascade cancels its
+// in-flight fetch (saves RPM under the 100 req/min cap).
 // ---------------------------------------------------------------------------
 
 async function liveChat(opts: ChatOpts, onToken?: OnToken): Promise<ChatResult> {

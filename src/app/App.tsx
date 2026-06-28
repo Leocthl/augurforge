@@ -11,6 +11,7 @@ import type {
   AgentId,
   AgentStatus,
   DashboardSpec,
+  OnEvent,
   ParamSet,
   ProseResult,
   RiskFlag,
@@ -100,6 +101,17 @@ export function App() {
     }
   }, []);
 
+  // Generation guard: events from a superseded interaction are dropped, so concurrent
+  // runTweak/runCascade calls cannot interleave streamed prose.
+  const tweakGenRef = useRef(0);
+  const sinkFor = useCallback(
+    (gen: number): OnEvent =>
+      (e) => {
+        if (gen === tweakGenRef.current) onEvent(e);
+      },
+    [onEvent],
+  );
+
   const recompute = useCallback((p: ParamSet): SimResult => {
     const s = templateRef.current.run(p);
     setSim(s);
@@ -109,13 +121,15 @@ export function App() {
   // Full build cascade: orchestrator → modeler → visualizer, then the interpretive trio.
   const runCascade = useCallback(
     async (input: PipelineInput) => {
+      const gen = ++tweakGenRef.current;
+      const sink = sinkFor(gen);
       setBuilding(true);
       setExplainer({ text: '' });
       setSensitivity({ text: '' });
       setRisk({ flags: [] });
       setAgents({});
       try {
-        const res = await runPipeline(input, onEvent);
+        const res = await runPipeline(input, sink);
         const tmpl = getTemplate(res.spec.templateId);
         const p = paramsFromSpec(res.spec);
         templateRef.current = tmpl;
@@ -128,13 +142,13 @@ export function App() {
         setSim(s);
         await runTweak(
           { templateId: res.spec.templateId, params: p, metrics: s.metrics, depth: depthRef.current },
-          onEvent,
+          sink,
         );
       } finally {
         setBuilding(false);
       }
     },
-    [onEvent],
+    [onEvent, sinkFor],
   );
 
   // Initial cascade on mount.
@@ -142,6 +156,9 @@ export function App() {
     void runCascade({ intent: 'Explore portfolio ruin risk under volatility' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Clear any pending debounced recompute on unmount.
+  useEffect(() => () => window.clearTimeout(dragTimer.current), []);
 
   // --- slider loop: free client-side math on drag, rate-limited agents on release ---
   const onSliderPointerDown = (id: string) => {
@@ -165,18 +182,20 @@ export function App() {
       ? { id, label: slider?.label, from: dragStart.current.from, to: p[id] }
       : undefined;
     dragStart.current = null;
+    const gen = ++tweakGenRef.current;
     void runTweak(
       { templateId: spec.templateId, params: p, metrics: s.metrics, depth: depthRef.current, changed },
-      onEvent,
+      sinkFor(gen),
     );
   };
 
   const onDepth = (d: 'entry' | 'expert') => {
     setDepth(d);
     depthRef.current = d;
+    const gen = ++tweakGenRef.current;
     void runTweak(
       { templateId: spec.templateId, params: paramsRef.current, metrics: sim.metrics, depth: d },
-      onEvent,
+      sinkFor(gen),
     );
   };
 
@@ -219,6 +238,7 @@ export function App() {
                   step={s.step}
                   value={params[s.id] ?? s.value}
                   onPointerDown={() => onSliderPointerDown(s.id)}
+                  onKeyDown={() => onSliderPointerDown(s.id)}
                   onChange={(e) => onSliderInput(s.id, Number(e.target.value))}
                   onPointerUp={() => onSliderRelease(s.id)}
                   onKeyUp={() => onSliderRelease(s.id)}
