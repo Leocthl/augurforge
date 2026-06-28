@@ -1,0 +1,16 @@
+{
+  "templateId": "monte-carlo",
+  "title": "Monte Carlo — Portfolio Ruin (GBM)",
+  "subtitle": "Geometric Brownian motion · 500 paths · simulated client-side",
+  "views": ["2d", "3d"],
+  "defaultView": "2d",
+  "sliders": [
+    { "id": "sigma", "label": "Volatility (σ)", "min": 5, "max": 40, "step": 1, "value": 18, "unit": "%" },
+    { "id": "drift", "label": "Drift (μ)", "min": -5, "max": 15, "step": 1, "value": 7, "unit": "%" },
+    { "id": "horizon", "label": "Horizon", "min": 5, "max": 40, "step": 1, "value": 30, "unit": "yr" }
+  ],
+  "explainer": {
+    "entry": "This shows many possible market journeys over time. Most paths grow, but some dip badly — the share that falls through the floor is the \"ruin\" chance.",
+    "expert": "A GBM ensemble of 500 paths. The fan shows the 5–95 and 25–75 percentile cones; the histogram is the terminal distribution. P(ruin) is the fraction breaching the barrier; 95% VaR is the 5th-percentile loss."
+  }
+}

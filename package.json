@@ -1,0 +1,37 @@
+{
+  "name": "augurforge",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Instant, interactive model sandbox for actuaries & quants — a Gemma-4-on-Cerebras agent swarm turns a model/dataset into a live, tweakable simulation.",
+  "scripts": {
+    "dev": "vite",
+    "server": "tsx watch server/proxy.ts",
+    "dev:live": "concurrently -n web,proxy -c cyan,magenta \"vite\" \"tsx watch server/proxy.ts\"",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "plotly.js-dist-min": "^2.35.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.7.0",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.0",
+    "@types/three": "^0.169.0",
+    "@vitejs/plugin-react": "^4.3.2",
+    "concurrently": "^9.0.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2",
+    "vite": "^5.4.8"
+  }
+}
