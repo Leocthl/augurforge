@@ -38,6 +38,21 @@ function mockText(ctx: TweakContext): string {
     );
   }
 
+  if (ctx.templateId.startsWith('generated:market-risk')) {
+    const stress = ctx.metrics.find((m) => m.id === 'total_stress')?.value ?? 'n/a';
+    if (ctx.changed) {
+      const dir = ctx.changed.to >= ctx.changed.from ? 'raising' : 'lowering';
+      return (
+        `${dir} ${ctx.changed.label ?? ctx.changed.id} moved combined stress to ${stress}. ` +
+        `Rate shock, portfolio duration, FX exposure, and FX volatility dominate because the model is a disclosure-scale sensitivity view.`
+      );
+    }
+    return (
+      `Combined stress is ${stress} under the current financial-report assumptions. ` +
+      `The two dominant levers are rate-shock duration exposure and FX VaR exposure.`
+    );
+  }
+
   const ruin = ctx.metrics.find((m) => m.id === 'p_ruin')?.value ?? 'n/a';
   const sigma = ctx.params.sigma;
   if (ctx.changed) {

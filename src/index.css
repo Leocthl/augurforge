@@ -181,7 +181,7 @@ input:disabled {
 
 .brand-block {
   display: grid;
-  grid-template-columns: 34px 1fr;
+  grid-template-columns: 38px 1fr;
   align-items: center;
   gap: 12px;
   padding: 0 0 18px;
@@ -189,19 +189,23 @@ input:disabled {
 }
 
 .brand-mark {
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   display: grid;
   place-items: center;
   border-radius: var(--r);
   background: var(--graphite);
-  color: oklch(97% 0.004 262);
-  font-size: 17px;
-  font-weight: 720;
-  letter-spacing: -0.01em;
+  overflow: hidden;
   box-shadow:
     0 1px 0 oklch(100% 0 0 / 0.14) inset,
     var(--shadow-tight);
+}
+
+.brand-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .brand-block h1,

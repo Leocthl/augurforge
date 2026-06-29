@@ -3,6 +3,7 @@ import { chat, type ContentPart } from '../cerebras';
 import type { PipelineInput } from '../pipeline';
 import {
   GENERATED_BLACK_SCHOLES_ID,
+  GENERATED_MARKET_RISK_ID,
   GENERATED_SIR_ID,
   fallbackGeneratedSpec,
   wantsGeneratedModel,
@@ -57,6 +58,12 @@ const PARAMS_SCHEMA = objectSchema(
     reproductionNumber: { type: 'number' },
     recoveryDays: { type: 'number' },
     horizonDays: { type: 'number' },
+    rateShockBps: { type: 'number' },
+    duration: { type: 'number' },
+    rateSensitiveAssets: { type: 'number' },
+    fxExposure: { type: 'number' },
+    fxVolatility: { type: 'number' },
+    confidence: { type: 'number' },
   },
   [],
 );
@@ -80,7 +87,7 @@ const MAPPING_SCHEMA = objectSchema(
 const GENERATED_SPEC_SCHEMA = objectSchema(
   {
     id: { type: 'string' },
-    modelKind: stringEnum(['black-scholes', 'sir']),
+    modelKind: stringEnum(['black-scholes', 'sir', 'market-risk']),
     title: { type: 'string' },
     subtitle: { type: 'string' },
     sliders: { type: 'array', items: SLIDER_SCHEMA },
@@ -100,7 +107,7 @@ const RESPONSE_FORMAT = jsonSchema(
   'augurforge_modeler',
   objectSchema(
     {
-      templateId: stringEnum(['monte-carlo', GENERATED_BLACK_SCHOLES_ID, GENERATED_SIR_ID]),
+      templateId: stringEnum(['monte-carlo', GENERATED_BLACK_SCHOLES_ID, GENERATED_SIR_ID, GENERATED_MARKET_RISK_ID]),
       params: PARAMS_SCHEMA,
       sliders: { type: 'array', items: SLIDER_SCHEMA },
       mapping: MAPPING_SCHEMA,
@@ -131,7 +138,7 @@ function mockModel(input: PipelineInput): GeneratedModelerResult {
     const generatedSpec = fallbackGeneratedSpec(input.intent);
     const sliders = generatedSpec.sliders ?? [];
     return {
-      templateId: GENERATED_BLACK_SCHOLES_ID,
+      templateId: generatedTemplateId(generatedSpec.modelKind),
       params: paramsFromSliders(sliders),
       sliders,
       mapping: { ...generatedSpec.mapping, ...attachmentMapping },
@@ -172,7 +179,10 @@ function summarizeAttachmentMapping(input: PipelineInput): Record<string, string
 function validate(json: unknown, fallback: GeneratedModelerResult): GeneratedModelerResult {
   if (!isRecord(json)) return fallback;
   const templateId =
-    json.templateId === GENERATED_BLACK_SCHOLES_ID || json.templateId === GENERATED_SIR_ID || json.templateId === 'monte-carlo'
+    json.templateId === GENERATED_BLACK_SCHOLES_ID ||
+    json.templateId === GENERATED_SIR_ID ||
+    json.templateId === GENERATED_MARKET_RISK_ID ||
+    json.templateId === 'monte-carlo'
       ? json.templateId
       : fallback.templateId;
   const fallbackSpec = fallback.generatedSpec ?? fallbackGeneratedSpec();
@@ -192,12 +202,17 @@ function validate(json: unknown, fallback: GeneratedModelerResult): GeneratedMod
 
 function sanitizeGeneratedSpec(raw: unknown, fallback: GeneratedTemplateSpec): GeneratedTemplateSpec {
   if (!isRecord(raw)) return fallback;
-  const modelKind = raw.modelKind === 'sir' || fallback.modelKind === 'sir' ? 'sir' : 'black-scholes';
+  const modelKind =
+    raw.modelKind === 'sir' || fallback.modelKind === 'sir'
+      ? 'sir'
+      : raw.modelKind === 'market-risk' || fallback.modelKind === 'market-risk'
+        ? 'market-risk'
+        : 'black-scholes';
   return {
-    id: modelKind === 'sir' ? GENERATED_SIR_ID : GENERATED_BLACK_SCHOLES_ID,
+    id: generatedTemplateId(modelKind),
     modelKind,
-    title: cleanString(raw.title, fallback.title ?? (modelKind === 'sir' ? 'Generated SIR Epidemic Sandbox' : 'Generated Black-Scholes Option Sandbox'), 72),
-    subtitle: cleanString(raw.subtitle, fallback.subtitle ?? (modelKind === 'sir' ? 'Deterministic SIR math' : 'Deterministic Black-Scholes math'), 120),
+    title: cleanString(raw.title, fallback.title ?? defaultGeneratedTitle(modelKind), 72),
+    subtitle: cleanString(raw.subtitle, fallback.subtitle ?? defaultGeneratedSubtitle(modelKind), 120),
     sliders: sanitizeSliders(raw.sliders, fallback.sliders ?? []),
     explainer: isRecord(raw.explainer)
       ? {
@@ -251,6 +266,24 @@ function sanitizeMapping(raw: unknown, fallback?: Record<string, string>): Recor
     if (typeof value === 'string') out[key.slice(0, 36)] = value.slice(0, 160);
   }
   return Object.keys(out).length ? out : fallback ?? {};
+}
+
+function generatedTemplateId(modelKind: GeneratedTemplateSpec['modelKind']): typeof GENERATED_BLACK_SCHOLES_ID | typeof GENERATED_SIR_ID | typeof GENERATED_MARKET_RISK_ID {
+  if (modelKind === 'sir') return GENERATED_SIR_ID;
+  if (modelKind === 'market-risk') return GENERATED_MARKET_RISK_ID;
+  return GENERATED_BLACK_SCHOLES_ID;
+}
+
+function defaultGeneratedTitle(modelKind: GeneratedTemplateSpec['modelKind']): string {
+  if (modelKind === 'sir') return 'Generated SIR Epidemic Sandbox';
+  if (modelKind === 'market-risk') return 'Generated Financial Market-Risk Sandbox';
+  return 'Generated Black-Scholes Option Sandbox';
+}
+
+function defaultGeneratedSubtitle(modelKind: GeneratedTemplateSpec['modelKind']): string {
+  if (modelKind === 'sir') return 'Deterministic SIR math';
+  if (modelKind === 'market-risk') return 'Deterministic disclosure-risk math';
+  return 'Deterministic Black-Scholes math';
 }
 
 function finite(value: unknown, fallback: number): number {

@@ -43,6 +43,24 @@ function mockText(ctx: TweakContext): string {
     );
   }
 
+  if (ctx.templateId.startsWith('generated:market-risk')) {
+    const ratePnl = ctx.metrics.find((m) => m.id === 'rate_pnl')?.value ?? 'n/a';
+    const fxVar = ctx.metrics.find((m) => m.id === 'fx_var')?.value ?? 'n/a';
+    const totalStress = ctx.metrics.find((m) => m.id === 'total_stress')?.value ?? 'n/a';
+    if (ctx.depth === 'expert') {
+      return (
+        `Generated market-risk sandbox: rate shock=${ctx.params.rateShockBps} bp, duration=${ctx.params.duration}y, ` +
+        `rate-sensitive assets=${ctx.params.rateSensitiveAssets}B, FX exposure=${ctx.params.fxExposure}B, FX vol=${ctx.params.fxVolatility}%, ` +
+        `confidence=${ctx.params.confidence}%. Rate shock P/L is ${ratePnl}, 10-day FX VaR is ${fxVar}, and combined stress is ${totalStress}. ` +
+        `This uses duration sensitivity plus parametric normal VaR, so hedges, correlations, convexity, and non-normal tails need review.`
+      );
+    }
+    return (
+      `Gemma generated this financial-report market-risk sandbox from the uploaded disclosure page. ` +
+      `At the current sliders, the rate shock contributes ${ratePnl}, FX VaR is ${fxVar}, and combined stress is ${totalStress}.`
+    );
+  }
+
   const ruin = ctx.metrics.find((m) => m.id === 'p_ruin')?.value ?? 'n/a';
   const varMetric = ctx.metrics.find((m) => m.id === 'var_95')?.value ?? 'n/a';
   const esMetric = ctx.metrics.find((m) => m.id === 'es_95')?.value ?? 'n/a';

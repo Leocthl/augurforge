@@ -65,6 +65,19 @@ function mockFlags(ctx: TweakContext): RiskFlag[] {
     return flags;
   }
 
+  if (ctx.templateId.startsWith('generated:market-risk')) {
+    const totalStress = parseMetric(ctx.metrics.find((m) => m.id === 'total_stress')?.value);
+    const flags: RiskFlag[] = [];
+    if (totalStress !== undefined && totalStress >= 10) {
+      flags.push({ level: 'warning', text: `Combined stress ${ctx.metrics.find((m) => m.id === 'total_stress')?.value} is material under this scenario.`, ref: 'Disclosure stress' });
+    } else {
+      flags.push({ level: 'ok', text: 'Rate and FX stress metrics are inside the current scenario range.', ref: 'Scenario metric' });
+    }
+    flags.push({ level: 'warning', text: 'Duration and normal VaR assumptions simplify disclosure risk; review hedges, correlations, and tail behavior.', ref: 'Model risk' });
+    flags.push({ level: 'ok', text: 'This is a financial-report exploration view, not investment advice.', ref: 'Decision-support only' });
+    return flags;
+  }
+
   const ruin = parseMetric(ctx.metrics.find((m) => m.id === 'p_ruin')?.value);
   const raw = summarizeRawForAgents(ctx.raw);
   const nPaths = typeof raw.nPaths === 'number' ? raw.nPaths : undefined;
