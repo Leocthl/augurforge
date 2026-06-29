@@ -18,8 +18,7 @@ import {
   type EventSource,
   type ReasoningState,
 } from '../explainer';
-import { ROLE_COLOR } from '../explainer/types';
-import { AGENT_ORDER } from './agents';
+import { AGENT_ORDER, GROUP_COLOR } from './agents';
 import { buildScene, type SceneLayout } from './scene';
 import { buildCrowd, stepWorker, totalFigures, type Crowd, type GroupStatus } from './crowd';
 import { loadGroupTraits } from './traits';
@@ -28,7 +27,7 @@ import { ambientFor } from './bubbles';
 import { drawScene, type AmbientBubble, type CameraView, type SceneState } from './draw';
 
 const SCENARIO_TITLE = 'Portfolio ruin risk — Monte Carlo (GBM)';
-const ROLE = ROLE_COLOR as Record<string, string>;
+const ROLE = GROUP_COLOR;
 
 /** Derive each group's live status from the reasoning reducer state. */
 function deriveStatuses(state: ReasoningState): Record<string, GroupStatus> {
@@ -101,7 +100,9 @@ export function WarRoom({ source }: { source?: EventSource }) {
 
   // Bake the Gemma-authored sprite atlas once on mount.
   useEffect(() => {
-    atlasRef.current = bakeAtlas(loadGroupTraits());
+    const atlas = bakeAtlas(loadGroupTraits());
+    if (!atlas) console.warn('[warroom] sprite atlas baking failed; rendering LOD squares');
+    atlasRef.current = atlas;
   }, []);
 
   // Canvas: DPR-aware sizing + the simfrancisco-style rAF loop.

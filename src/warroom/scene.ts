@@ -168,19 +168,19 @@ export function drawOffice(
   ctx.textBaseline = 'top';
   const pad = Math.max(8, 12 * zoom);
   ctx.fillStyle = PALETTE.boardDim;
-  ctx.font = `600 ${Math.max(9, Math.round(11 * zoom))}px ui-sans-serif, system-ui, sans-serif`;
+  ctx.font = `600 ${Math.max(9, Math.round(11 * zoom))}px 'Geist Variable', ui-sans-serif, system-ui, sans-serif`;
   ctx.fillText('SITUATION BOARD', tl.x + pad, tl.y + pad);
   ctx.fillStyle = PALETTE.boardInk;
   const titleSize = Math.max(12, Math.round(15 * zoom));
-  ctx.font = `600 ${titleSize}px ui-sans-serif, system-ui, sans-serif`;
+  ctx.font = `600 ${titleSize}px 'Geist Variable', ui-sans-serif, system-ui, sans-serif`;
   wrapText(ctx, board.title, tl.x + pad, tl.y + pad + titleSize + 4, bw - pad * 2, titleSize + 3, 3);
   if (board.metric) {
     const my = tl.y + bh - pad - Math.max(20, 26 * zoom);
     ctx.fillStyle = PALETTE.boardDim;
-    ctx.font = `500 ${Math.max(9, Math.round(10 * zoom))}px ui-sans-serif, system-ui, sans-serif`;
+    ctx.font = `500 ${Math.max(9, Math.round(10 * zoom))}px 'Geist Variable', ui-sans-serif, system-ui, sans-serif`;
     ctx.fillText(board.metric.label.toUpperCase(), tl.x + pad, my);
     ctx.fillStyle = PALETTE.blue;
-    ctx.font = `700 ${Math.max(13, Math.round(17 * zoom))}px ui-sans-serif, system-ui, sans-serif`;
+    ctx.font = `700 ${Math.max(13, Math.round(17 * zoom))}px 'Geist Variable', ui-sans-serif, system-ui, sans-serif`;
     ctx.fillText(board.metric.value, tl.x + pad, my + Math.max(11, 13 * zoom));
   }
   ctx.restore();

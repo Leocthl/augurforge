@@ -6,7 +6,7 @@
  * restyled for AugurForge's light register (white panel, hairline border, group-colour left stripe).
  * Plus the ambient office one-liners idle workers murmur, so the room feels alive like the repo.
  */
-const FONT = '600 12px ui-sans-serif, system-ui, sans-serif';
+const FONT = "600 12px 'Geist Variable', ui-sans-serif, system-ui, sans-serif";
 const PAD = 7;
 const LH = 15;
 const MAXW = 168;
@@ -53,9 +53,10 @@ function wrap(ctx: CanvasRenderingContext2D, text: string): string[] {
       line = test;
     }
   }
-  if (lines.length < 3 && line) lines.push(line);
-  // If words remain past the 3-line cap, mark the last line as truncated.
-  if (lines.length === 3 && i < words.length - 1) {
+  if (lines.length < 3 && line) {
+    lines.push(line);
+  } else if (lines.length === 3 && line) {
+    // A word was left uncommitted past the 3-line cap -> content dropped; mark truncation.
     lines[2] = `${lines[2].replace(/\s*…?$/, '')}…`;
   }
   return lines;
@@ -86,7 +87,8 @@ export function drawBubble(
   const tipY = anchorY - 4;
   let by = tipY - TAIL - bh;
   let bx = anchorX - bw / 2;
-  bx = Math.max(6, Math.min(opts.cssW - bw - 6, bx));
+  const maxX = Math.max(6, opts.cssW - bw - 6);
+  bx = Math.min(maxX, Math.max(6, bx));
   if (by < 4) by = 4;
 
   // Box

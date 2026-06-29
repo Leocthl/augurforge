@@ -16,7 +16,7 @@ const SPRITE_PX = 26; // world footprint of a worker (~one desk-height)
 const LOD_PX = 10; // below this on-screen size, draw a colored square instead of the sprite
 
 /** Reasoning topology — who each active group descends from (matches reasoningGraph.UPSTREAM). */
-const UPSTREAM: Record<string, string | null> = {
+const UPSTREAM: Record<AgentId, AgentId | null> = {
   orchestrator: null,
   modeler: 'orchestrator',
   visualizer: 'modeler',

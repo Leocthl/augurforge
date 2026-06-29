@@ -133,12 +133,12 @@ function drawWorker(
 }
 
 /** Bake the full atlas from the six groups' traits. Pure + deterministic (no RNG). */
-export function bakeAtlas(traits: GroupTraits[]): HTMLCanvasElement {
+export function bakeAtlas(traits: GroupTraits[]): HTMLCanvasElement | null {
   const canvas = document.createElement('canvas');
   canvas.width = ATLAS_W;
   canvas.height = ATLAS_H;
   const ctx = canvas.getContext('2d');
-  if (!ctx) return canvas;
+  if (!ctx) return null;
   ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, ATLAS_W, ATLAS_H);
 
