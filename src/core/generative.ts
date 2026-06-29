@@ -22,8 +22,9 @@ import { blackScholes, impliedVolatility } from './math/black-scholes';
 
 export const GENERATED_BLACK_SCHOLES_ID = 'generated:black-scholes';
 export const GENERATED_SIR_ID = 'generated:sir';
+export const GENERATED_MARKET_RISK_ID = 'generated:market-risk';
 
-type GeneratedModelKind = 'black-scholes' | 'sir';
+type GeneratedModelKind = 'black-scholes' | 'sir' | 'market-risk';
 
 export interface GeneratedTemplateSpec {
   id?: string;
@@ -63,6 +64,15 @@ const SIR_SLIDERS: SliderDef[] = [
   { id: 'horizonDays', label: 'Horizon', min: 30, max: 240, step: 5, value: 120, unit: 'd' },
 ];
 
+const MARKET_RISK_SLIDERS: SliderDef[] = [
+  { id: 'rateShockBps', label: 'Rate shock', min: -300, max: 300, step: 25, value: 100, unit: 'bp' },
+  { id: 'duration', label: 'Portfolio duration', min: 0.25, max: 7, step: 0.25, value: 2.6, unit: 'yr' },
+  { id: 'rateSensitiveAssets', label: 'Rate-sensitive assets', min: 25, max: 300, step: 5, value: 165, unit: '$B' },
+  { id: 'fxExposure', label: 'FX exposure', min: 10, max: 250, step: 5, value: 120, unit: '$B' },
+  { id: 'fxVolatility', label: 'FX volatility', min: 1, max: 25, step: 0.5, value: 8, unit: '%' },
+  { id: 'confidence', label: 'VaR confidence', min: 90, max: 99.5, step: 0.5, value: 95, unit: '%' },
+];
+
 const BLACK_SCHOLES_EXPLAINER: Explainer = {
   entry:
     'This generated sandbox prices a European option from spot, strike, volatility, rates, dividend yield, and maturity. The curves show how call and put values move as the underlying price changes.',
@@ -77,11 +87,18 @@ const SIR_EXPLAINER: Explainer = {
     'The SIR compiler uses a deterministic daily Euler integration with beta = R0 / recoveryDays and gamma = 1 / recoveryDays. It is a transparent teaching model, not a medical forecast.',
 };
 
+const MARKET_RISK_EXPLAINER: Explainer = {
+  entry:
+    'This generated financial-report sandbox turns a one-page market-risk disclosure into two simple views: interest-rate shock sensitivity and foreign-exchange VaR.',
+  expert:
+    'The deterministic browser model uses duration-based rate sensitivity and a parametric normal FX VaR approximation. It is a disclosure-reading aid, not a full treasury VaR engine.',
+};
+
 export function wantsGeneratedModel(intent?: string, mode?: string): boolean {
   const text = (intent ?? '').toLowerCase();
   return (
     mode === 'generate' ||
-    /\b(generate|generated|new model|not in the library|write .*model|black[-\s]?scholes|option|greeks?|sir|epidemic|infection|non[-\s]?finance)\b/.test(text)
+    /\b(generate|generated|new model|not in the library|write .*model|black[-\s]?scholes|option|greeks?|sir|epidemic|infection|non[-\s]?finance|financial report|annual report|10-k|10k|market risk|value-at-risk|var|foreign exchange|fx|interest[-\s]?rate|revenue|margin)\b/.test(text)
   );
 }
 
@@ -97,18 +114,27 @@ export function fallbackGeneratedSpec(intent?: string): GeneratedTemplateSpec {
     title:
       kind === 'sir'
         ? 'Generated SIR Epidemic Sandbox'
+        : kind === 'market-risk'
+          ? 'Generated Financial Market-Risk Sandbox'
         : /\b(option|black[-\s]?scholes|greeks?)\b/i.test(intent ?? '')
           ? 'Generated Black-Scholes Option Sandbox'
           : 'Generated Option Pricing Sandbox',
     subtitle:
       kind === 'sir'
         ? 'Gemma-authored model spec, deterministic SIR math'
+        : kind === 'market-risk'
+          ? 'Gemma-authored model spec, deterministic disclosure-risk math'
         : 'Gemma-authored model spec, deterministic Black-Scholes math',
     sliders: slidersForKind(kind),
     explainer: explainerForKind(kind),
     mapping: {
       generated: 'Compiled from a validated declarative model spec, not arbitrary generated code.',
-      model: kind === 'sir' ? 'Susceptible-infected-recovered compartment model.' : 'European call and put pricing with Greeks.',
+      model:
+        kind === 'sir'
+          ? 'Susceptible-infected-recovered compartment model.'
+          : kind === 'market-risk'
+            ? 'Interest-rate shock sensitivity and parametric foreign-exchange VaR.'
+            : 'European call and put pricing with Greeks.',
     },
   };
 }
@@ -128,8 +154,8 @@ export function createGeneratedTemplate(
   const template: TemplateModule = {
     id: generatedSpec.id ?? generatedIdForKind(modelKind),
     spec: dashboard,
-    run: modelKind === 'sir' ? runSir : runBlackScholes,
-    render2D: modelKind === 'sir' ? renderSir2D : renderBlackScholes2D,
+    run: modelKind === 'sir' ? runSir : modelKind === 'market-risk' ? runMarketRisk : runBlackScholes,
+    render2D: modelKind === 'sir' ? renderSir2D : modelKind === 'market-risk' ? renderMarketRisk2D : renderBlackScholes2D,
   };
 
   return {
@@ -137,8 +163,8 @@ export function createGeneratedTemplate(
     generatedSpec,
     fallbackUsed,
     note: fallbackUsed
-      ? `Used the pre-tested ${modelKind === 'sir' ? 'SIR' : 'Black-Scholes'} fallback after validation rejected the generated spec.`
-      : `Compiled a validated generated model spec into the deterministic ${modelKind === 'sir' ? 'SIR' : 'Black-Scholes'} runtime.`,
+      ? `Used the pre-tested ${modelKind === 'sir' ? 'SIR' : modelKind === 'market-risk' ? 'market-risk' : 'Black-Scholes'} fallback after validation rejected the generated spec.`
+      : `Compiled a validated generated model spec into the deterministic ${modelKind === 'sir' ? 'SIR' : modelKind === 'market-risk' ? 'market-risk' : 'Black-Scholes'} runtime.`,
   };
 }
 
@@ -248,29 +274,38 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isGeneratedModelKind(value: unknown): value is GeneratedModelKind {
-  return value === 'black-scholes' || value === 'sir';
+  return value === 'black-scholes' || value === 'sir' || value === 'market-risk';
 }
 
 function inferGeneratedKind(intent?: string): GeneratedModelKind {
-  return /\b(sir|epidemic|infection|infectious|disease|non[-\s]?finance)\b/i.test(intent ?? '')
-    ? 'sir'
-    : 'black-scholes';
+  const text = intent ?? '';
+  if (/\b(sir|epidemic|infection|infectious|disease|non[-\s]?finance)\b/i.test(text)) return 'sir';
+  if (/\b(financial report|annual report|10-k|10k|market risk|value-at-risk|var|foreign exchange|fx|interest[-\s]?rate|revenue|margin)\b/i.test(text)) {
+    return 'market-risk';
+  }
+  return 'black-scholes';
 }
 
 function generatedIdForKind(kind: GeneratedModelKind): string {
-  return kind === 'sir' ? GENERATED_SIR_ID : GENERATED_BLACK_SCHOLES_ID;
+  if (kind === 'sir') return GENERATED_SIR_ID;
+  if (kind === 'market-risk') return GENERATED_MARKET_RISK_ID;
+  return GENERATED_BLACK_SCHOLES_ID;
 }
 
 function slidersForKind(kind: GeneratedModelKind): SliderDef[] {
-  return (kind === 'sir' ? SIR_SLIDERS : BLACK_SCHOLES_SLIDERS).map((s) => ({ ...s }));
+  return (kind === 'sir' ? SIR_SLIDERS : kind === 'market-risk' ? MARKET_RISK_SLIDERS : BLACK_SCHOLES_SLIDERS).map((s) => ({ ...s }));
 }
 
 function explainerForKind(kind: GeneratedModelKind): Explainer {
-  return kind === 'sir' ? SIR_EXPLAINER : BLACK_SCHOLES_EXPLAINER;
+  if (kind === 'sir') return SIR_EXPLAINER;
+  if (kind === 'market-risk') return MARKET_RISK_EXPLAINER;
+  return BLACK_SCHOLES_EXPLAINER;
 }
 
 function defaultTitleForKind(kind: GeneratedModelKind): string {
-  return kind === 'sir' ? 'Generated SIR Epidemic Sandbox' : 'Generated Option Pricing Sandbox';
+  if (kind === 'sir') return 'Generated SIR Epidemic Sandbox';
+  if (kind === 'market-risk') return 'Generated Financial Market-Risk Sandbox';
+  return 'Generated Option Pricing Sandbox';
 }
 
 function runBlackScholes(params: ParamSet): SimResult {
@@ -479,8 +514,218 @@ function runSir(params: ParamSet): SimResult {
   };
 }
 
+function runMarketRisk(params: ParamSet): SimResult {
+  const rateShockBps = clamp(params.rateShockBps ?? 100, -500, 500);
+  const duration = clamp(params.duration ?? 2.6, 0.1, 20);
+  const rateSensitiveAssets = clamp(params.rateSensitiveAssets ?? 165, 1, 1000);
+  const fxExposure = clamp(params.fxExposure ?? 120, 1, 1000);
+  const fxVolatility = clamp(params.fxVolatility ?? 8, 0.1, 80);
+  const confidence = clamp(params.confidence ?? 95, 50, 99.9);
+  const z = normalQuantile(confidence / 100);
+  const horizonScale = Math.sqrt(10 / 252);
+  const currentRatePnl = -duration * rateSensitiveAssets * (rateShockBps / 10000);
+  const currentFxVar = fxExposure * (fxVolatility / 100) * horizonScale * z;
+  const totalStress = Math.abs(currentRatePnl) + currentFxVar;
+
+  const shockX: number[] = [];
+  const ratePnl: number[] = [];
+  for (let shock = -300; shock <= 300; shock += 15) {
+    shockX.push(shock);
+    ratePnl.push(-duration * rateSensitiveAssets * (shock / 10000));
+  }
+
+  const volX: number[] = [];
+  const fxVar: number[] = [];
+  for (let vol = 1; vol <= 25; vol += 0.6) {
+    volX.push(Number(vol.toFixed(1)));
+    fxVar.push(fxExposure * (vol / 100) * horizonScale * z);
+  }
+
+  const series = [
+    { name: 'rate shock P/L', x: shockX, y: ratePnl },
+    { name: 'FX VaR', x: volX, y: fxVar },
+  ];
+  const metrics: Metric[] = [
+    { id: 'rate_pnl', label: 'Rate shock P/L', value: moneyBillions(currentRatePnl) },
+    { id: 'fx_var', label: '10d FX VaR', value: moneyBillions(currentFxVar) },
+    { id: 'total_stress', label: 'Combined stress', value: moneyBillions(totalStress) },
+    { id: 'confidence', label: 'VaR confidence', value: `${confidence.toFixed(1).replace(/\.0$/, '')}%` },
+  ];
+  const shapes: VizShape[] = [
+    { kind: 'curve', series },
+    {
+      kind: 'distribution',
+      values: [Math.abs(currentRatePnl), currentFxVar],
+      markers: [
+        { label: 'rate shock', value: Math.abs(currentRatePnl) },
+        { label: 'FX VaR', value: currentFxVar },
+      ],
+    },
+  ];
+
+  return {
+    series,
+    metrics,
+    raw: {
+      modelKind: 'market-risk',
+      modelFamily: 'Financial market risk',
+      generated: true,
+      shapes,
+      rateShockBps,
+      duration,
+      rateSensitiveAssets,
+      fxExposure,
+      fxVolatility,
+      confidence,
+      zScore: z,
+      currentRatePnl,
+      currentFxVar,
+      totalStress,
+      assumptions: [
+        'Rate sensitivity uses a first-order duration approximation.',
+        'FX VaR uses a parametric normal approximation over a 10-trading-day horizon.',
+        'Inputs are scenario sliders inferred from a financial-report market-risk disclosure.',
+      ],
+      warnings: [
+        'This is a disclosure-reading sandbox, not a full treasury VaR model.',
+        'Correlations, option convexity, hedging instruments, and non-normal tails are not modeled.',
+      ],
+      xMin: -300,
+      xMax: 300,
+      yMax: Math.max(...ratePnl.map(Math.abs), ...fxVar, 1) * 1.15,
+    },
+  };
+}
+
 function money(value: number): string {
   return `$${value.toFixed(2)}`;
+}
+
+function moneyBillions(value: number): string {
+  const sign = value < 0 ? '-' : '';
+  return `${sign}$${Math.abs(value).toFixed(2)}B`;
+}
+
+function normalQuantile(p: number): number {
+  if (p <= 0) return Number.NEGATIVE_INFINITY;
+  if (p >= 1) return Number.POSITIVE_INFINITY;
+
+  const a = [-39.69683028665376, 220.9460984245205, -275.9285104469687, 138.357751867269, -30.66479806614716, 2.506628277459239];
+  const b = [-54.47609879822406, 161.5858368580409, -155.6989798598866, 66.80131188771972, -13.28068155288572];
+  const c = [-0.007784894002430293, -0.3223964580411365, -2.400758277161838, -2.549732539343734, 4.374664141464968, 2.938163982698783];
+  const d = [0.007784695709041462, 0.3224671290700398, 2.445134137142996, 3.754408661907416];
+  const low = 0.02425;
+  const high = 1 - low;
+
+  if (p < low) {
+    const q = Math.sqrt(-2 * Math.log(p));
+    return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) /
+      ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1);
+  }
+  if (p > high) {
+    const q = Math.sqrt(-2 * Math.log(1 - p));
+    return -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) /
+      ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1);
+  }
+
+  const q = p - 0.5;
+  const r = q * q;
+  return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q /
+    (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
+}
+
+function renderMarketRisk2D(el: HTMLElement, sim: SimResult, opts: RenderOpts): Renderer {
+  const paint = (next: SimResult, animate: boolean) => {
+    const rate = next.series?.find((s) => s.name === 'rate shock P/L');
+    const fx = next.series?.find((s) => s.name === 'FX VaR');
+    if (!rate || !fx) return;
+    const width = Math.max(680, el.clientWidth || 940);
+    const height = Math.max(360, el.clientHeight || 520);
+    // Top band is large on purpose: the panel header (title + subtitle + provenance note) is an
+    // absolute overlay over this chart, so the sub-plot titles must start below it to avoid overlap.
+    const pad = { left: 58, right: 30, top: 108, bottom: 56 };
+    const gap = 54;
+    const panelW = (width - pad.left - pad.right - gap) / 2;
+    const plotH = height - pad.top - pad.bottom;
+    const leftX = pad.left;
+    const rightX = pad.left + panelW + gap;
+    const rateMin = Math.min(...rate.y, -1);
+    const rateMax = Math.max(...rate.y, 1);
+    const rateAbs = Math.max(Math.abs(rateMin), Math.abs(rateMax), 1);
+    const fxMax = Math.max(...fx.y, 1);
+    const rateShock = finiteNumber(next.raw?.rateShockBps, 100);
+    const fxVolatility = finiteNumber(next.raw?.fxVolatility, 8);
+    const currentRatePnl = finiteNumber(next.raw?.currentRatePnl, 0);
+    const currentFxVar = finiteNumber(next.raw?.currentFxVar, 0);
+    const themeInk = opts.theme === 'dark' ? '#d9e7f5' : '#172033';
+    const dim = opts.theme === 'dark' ? '#7d8da3' : '#5a6575';
+    const grid = opts.theme === 'dark' ? 'rgba(125,141,163,0.22)' : 'rgba(90,101,117,0.24)';
+    const dashOffset = animate ? 'dashoffset' : 'none';
+
+    const sxRate = (x: number) => leftX + ((x + 300) / 600) * panelW;
+    const syRate = (y: number) => pad.top + plotH / 2 - (y / (rateAbs * 1.15)) * (plotH / 2);
+    const sxFx = (x: number) => rightX + ((x - 1) / 24) * panelW;
+    const syFx = (y: number) => pad.top + plotH - (y / (fxMax * 1.18)) * plotH;
+    const line = (xs: number[], ys: number[], sx: (x: number) => number, sy: (y: number) => number) =>
+      xs.map((x, i) => `${i === 0 ? 'M' : 'L'}${sx(x).toFixed(1)},${sy(ys[i]).toFixed(1)}`).join(' ');
+    const ratePath = line(rate.x, rate.y, sxRate, syRate);
+    const fxPath = line(fx.x, fx.y, sxFx, syFx);
+    const rateMarkerX = sxRate(rateShock);
+    const rateMarkerY = syRate(currentRatePnl);
+    const fxMarkerX = sxFx(fxVolatility);
+    const fxMarkerY = syFx(currentFxVar);
+    const zeroY = syRate(0);
+
+    el.innerHTML = `
+      <svg class="generated-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Generated financial market-risk chart">
+        <defs>
+          <linearGradient id="marketRate" x1="0" x2="1">
+            <stop offset="0%" stop-color="#f59e0b" />
+            <stop offset="100%" stop-color="#38bdf8" />
+          </linearGradient>
+          <linearGradient id="marketFx" x1="0" x2="1">
+            <stop offset="0%" stop-color="#2dd4bf" />
+            <stop offset="100%" stop-color="#4ade80" />
+          </linearGradient>
+        </defs>
+        <rect x="0" y="0" width="${width}" height="${height}" fill="transparent" />
+        ${[0, 0.25, 0.5, 0.75, 1]
+          .map((t) => {
+            const y = pad.top + plotH * t;
+            return `<line x1="${leftX}" x2="${leftX + panelW}" y1="${y}" y2="${y}" stroke="${grid}" />
+              <line x1="${rightX}" x2="${rightX + panelW}" y1="${y}" y2="${y}" stroke="${grid}" />`;
+          })
+          .join('')}
+        <line x1="${leftX}" x2="${leftX + panelW}" y1="${zeroY}" y2="${zeroY}" stroke="rgba(217,231,245,0.36)" />
+        <line x1="${leftX}" x2="${leftX}" y1="${pad.top}" y2="${pad.top + plotH}" stroke="${grid}" />
+        <line x1="${rightX}" x2="${rightX}" y1="${pad.top}" y2="${pad.top + plotH}" stroke="${grid}" />
+        <path class="generated-path ${dashOffset}" d="${ratePath}" fill="none" stroke="url(#marketRate)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+        <path class="generated-path ${dashOffset}" d="${fxPath}" fill="none" stroke="url(#marketFx)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+        <line x1="${rateMarkerX}" x2="${rateMarkerX}" y1="${pad.top}" y2="${pad.top + plotH}" stroke="#fbbf24" stroke-dasharray="4 6" />
+        <circle cx="${rateMarkerX}" cy="${rateMarkerY}" r="5" fill="#fbbf24" stroke="rgba(255,255,255,0.72)" />
+        <line x1="${fxMarkerX}" x2="${fxMarkerX}" y1="${pad.top}" y2="${pad.top + plotH}" stroke="#4ade80" stroke-dasharray="4 6" />
+        <circle cx="${fxMarkerX}" cy="${fxMarkerY}" r="5" fill="#4ade80" stroke="rgba(255,255,255,0.72)" />
+        <text x="${leftX}" y="${pad.top - 18}" fill="${themeInk}" font-size="13" font-weight="700">Interest-rate shock P/L</text>
+        <text x="${rightX}" y="${pad.top - 18}" fill="${themeInk}" font-size="13" font-weight="700">Foreign-exchange VaR</text>
+        <text x="${leftX}" y="${height - 20}" fill="${dim}" font-size="12">Rate shock (basis points)</text>
+        <text x="${rightX}" y="${height - 20}" fill="${dim}" font-size="12">FX volatility (%)</text>
+        <text x="${leftX}" y="${pad.top + plotH + 18}" fill="${dim}" font-size="11">-300 bp</text>
+        <text x="${leftX + panelW - 44}" y="${pad.top + plotH + 18}" fill="${dim}" font-size="11">+300 bp</text>
+        <text x="${rightX}" y="${pad.top + plotH + 18}" fill="${dim}" font-size="11">1%</text>
+        <text x="${rightX + panelW - 26}" y="${pad.top + plotH + 18}" fill="${dim}" font-size="11">25%</text>
+        <text x="${rateMarkerX + 8}" y="${Math.max(pad.top + 16, rateMarkerY - 10)}" fill="#fbbf24" font-size="11">${moneyBillions(currentRatePnl)}</text>
+        <text x="${fxMarkerX + 8}" y="${Math.max(pad.top + 16, fxMarkerY - 10)}" fill="#4ade80" font-size="11">${moneyBillions(currentFxVar)}</text>
+      </svg>
+    `;
+  };
+
+  paint(sim, opts.animate);
+  return {
+    update: (next, animate) => paint(next, animate),
+    destroy: () => {
+      el.innerHTML = '';
+    },
+  };
 }
 
 function renderBlackScholes2D(el: HTMLElement, sim: SimResult, opts: RenderOpts): Renderer {

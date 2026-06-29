@@ -2,6 +2,7 @@ import type { DashboardSpec, OnEvent, ModelerResult, SliderDef, VisualizerResult
 import { chat } from '../cerebras';
 import {
   GENERATED_BLACK_SCHOLES_ID,
+  GENERATED_MARKET_RISK_ID,
   GENERATED_SIR_ID,
   createGeneratedTemplate,
   isGeneratedTemplateId,
@@ -22,7 +23,7 @@ const SYSTEM =
   'view choices, and two-depth explainer. Use 3d only when the renderer supports a genuine field ' +
   'or surface such as time x value x probability density, a volatility surface, or a price/yield surface. ' +
   'Keep curve, fan, histogram, and compartment models 2d. ' +
-  'For generated:black-scholes and generated:sir use 2d only. Return only strict JSON DashboardSpec.';
+  'For generated:black-scholes, generated:sir, and generated:market-risk use 2d only. Return only strict JSON DashboardSpec.';
 
 const SLIDER_SCHEMA = objectSchema(
   {
@@ -41,7 +42,7 @@ const RESPONSE_FORMAT = jsonSchema(
   'augurforge_visualizer',
   objectSchema(
     {
-      templateId: stringEnum(['monte-carlo', GENERATED_BLACK_SCHOLES_ID, GENERATED_SIR_ID]),
+      templateId: stringEnum(['monte-carlo', GENERATED_BLACK_SCHOLES_ID, GENERATED_SIR_ID, GENERATED_MARKET_RISK_ID]),
       title: { type: 'string' },
       subtitle: { type: 'string' },
       sliders: { type: 'array', items: SLIDER_SCHEMA },
@@ -102,6 +103,7 @@ function validate(json: unknown, fallback: DashboardSpec): DashboardSpec {
 
 function sanitizeTemplateId(raw: unknown, fallback: string): string {
   return raw === fallback || raw === 'monte-carlo' || raw === GENERATED_BLACK_SCHOLES_ID || raw === GENERATED_SIR_ID
+    || raw === GENERATED_MARKET_RISK_ID
     ? String(raw)
     : fallback;
 }
