@@ -18,9 +18,15 @@ const PORT = Number(process.env.PROXY_PORT ?? 8787);
 const API_KEY = process.env.CEREBRAS_API_KEY;
 const BASE_URL = process.env.CEREBRAS_BASE_URL ?? 'https://api.cerebras.ai/v1';
 const MODEL = process.env.CEREBRAS_MODEL ?? 'gemma-4-31b';
+// Speed-race comparator. Defaults target OpenRouter so the race is Cerebras Gemma 4 vs
+// the SAME Gemma 4 served on commodity GPUs — a pure inference-hardware comparison.
 const BASELINE_API_KEY = process.env.BASELINE_API_KEY;
 const BASELINE_BASE_URL = process.env.BASELINE_BASE_URL;
 const BASELINE_MODEL = process.env.BASELINE_MODEL;
+const BASELINE_LABEL = process.env.BASELINE_LABEL ?? 'OpenRouter · Gemma 4';
+// OpenRouter recommends (but does not require) these attribution headers.
+const OPENROUTER_REFERER = process.env.OPENROUTER_REFERER ?? 'http://localhost:5173';
+const OPENROUTER_TITLE = process.env.OPENROUTER_TITLE ?? 'AugurForge';
 const MAX_MESSAGES = 12;
 const MAX_TEXT_CHARS = 12_000;
 const MAX_IMAGE_DATA_URL_CHARS = 12_000_000;
@@ -36,15 +42,32 @@ interface RateState {
 const rateBuckets = new Map<string, RateState>();
 
 const app = express();
-// Restrict CORS to the dev origin so a deployed/forwarded proxy can't have its key quota drained.
+// Restrict CORS so a deployed/forwarded proxy can't have its key quota drained by an
+// external site. Explicit ALLOWED_ORIGINS plus any loopback origin (localhost/127.0.0.1/::1)
+// on ANY port — so local dev keeps working when Vite bumps to 5174+ — while still blocking
+// real external origins (loopback isn't reachable off the machine).
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:5173')
   .split(',')
   .map((x) => x.trim())
   .filter(Boolean);
+
+function isLoopbackOrigin(origin: string): boolean {
+  try {
+    const { hostname } = new URL(origin);
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]';
+  } catch {
+    return false;
+  }
+}
+
+function isAllowedOrigin(origin: string): boolean {
+  return ALLOWED_ORIGINS.includes(origin) || isLoopbackOrigin(origin);
+}
+
 app.use(
   cors({
     origin: (origin, cb) => {
-      if (!origin || ALLOWED_ORIGINS.includes(origin)) cb(null, true);
+      if (!origin || isAllowedOrigin(origin)) cb(null, true);
       else cb(new Error('Origin not allowed'), false);
     },
   }),
@@ -57,6 +80,8 @@ app.get('/api/health', (_req, res) => {
     model: MODEL,
     hasKey: Boolean(API_KEY),
     baselineConfigured: Boolean(BASELINE_API_KEY && BASELINE_BASE_URL && BASELINE_MODEL),
+    baselineLabel: BASELINE_LABEL,
+    baselineModel: BASELINE_API_KEY && BASELINE_MODEL ? BASELINE_MODEL : null,
     rateLimit: {
       windowMs: RATE_WINDOW_MS,
       maxRequests: RATE_MAX_REQUESTS,
@@ -103,10 +128,20 @@ app.post('/api/chat', async (req, res) => {
     return;
   }
 
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${key}`,
+  };
+  // OpenRouter ranks/attributes traffic via these optional headers; harmless elsewhere.
+  if (wantsBaseline && baseUrl.includes('openrouter')) {
+    headers['HTTP-Referer'] = OPENROUTER_REFERER;
+    headers['X-Title'] = OPENROUTER_TITLE;
+  }
+
   try {
     const upstream = await fetch(upstreamUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      headers,
       body: JSON.stringify(body),
     });
 
@@ -226,7 +261,7 @@ function clamp(value: number, min: number, max: number): number {
 app.listen(PORT, () => {
   console.log(
     `[augurforge] key-proxy on http://localhost:${PORT}  (model=${MODEL}, key=${API_KEY ? 'set' : 'MISSING'}, baseline=${
-      BASELINE_API_KEY ? 'set' : 'mock'
+      BASELINE_API_KEY ? `${BASELINE_LABEL} → ${BASELINE_MODEL ?? '?'}` : 'mock'
     })`,
   );
 });

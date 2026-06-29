@@ -35,7 +35,7 @@ export function ReasoningPanel({ state, building, latest }: Props) {
   const onNodeClick = useCallback((id: string) => setFocused(agentForNode(id)), []);
 
   return (
-    <div className="panel reasoning-panel">
+    <div className="reasoning-panel">
       <div className="panel-head">
         <span className="panel-title">Gemma agent cascade</span>
         {building && <span className="panel-time">streaming</span>}
