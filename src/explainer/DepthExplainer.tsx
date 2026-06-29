@@ -47,6 +47,7 @@ export function DepthExplainer({ source }: Props) {
   const [latest, setLatest] = useState<{ ttftMs?: number; tokensPerSec?: number }>({});
   const [started, setStarted] = useState(false);
   const [mode, setMode] = useState<Mode>('mock');
+  const [activeSourceMode, setActiveSourceMode] = useState<Mode>('mock');
   const [depth, setDepth] = useState<Depth>('entry');
   const [selected, setSelected] = useState<GraphSelection>({ nodeId: null, sentenceId: null });
   const [activeRole, setActiveRole] = useState<StakeholderRoleId>('executive');
@@ -101,11 +102,11 @@ export function DepthExplainer({ source }: Props) {
     setRoleStatuses(initialRoleStatuses());
     setRunId((id) => id + 1);
     setStarted(true);
-    const src =
-      source ??
-      (mode === 'real'
-        ? realPipelineSource(depth, pipelineInputFromSession(sessionRef.current))
-        : mockEventSource({ depth }));
+    const sessionInput = pipelineInputFromSession(sessionRef.current);
+    const shouldRunLive = !source && mode === 'real' && !!sessionInput;
+    const runMode: Mode = shouldRunLive ? 'real' : 'mock';
+    setActiveSourceMode(source ? mode : runMode);
+    const src = source ?? (shouldRunLive ? realPipelineSource(depth, sessionInput) : mockEventSource({ depth }));
     stopRef.current = src.start(onEvent);
   }, [source, mode, depth, onEvent]);
 
@@ -181,6 +182,7 @@ export function DepthExplainer({ source }: Props) {
         latest={latest}
         started={started}
         mode={mode}
+        activeSourceMode={activeSourceMode}
         depth={depth}
         session={session}
         size={size}

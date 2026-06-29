@@ -25,6 +25,7 @@ interface Props {
   latest: { ttftMs?: number; tokensPerSec?: number };
   started: boolean;
   mode: Mode;
+  activeSourceMode: Mode;
   depth: Depth;
   session: AugurForgeSessionSnapshot | null;
   size: { w: number; h: number };
@@ -60,6 +61,13 @@ export function ExplainerWorkbench(props: Props) {
   const highlighted = activeSentence
     ? nodeIdsForSentence(props.state.data, activeSentence)
     : inspection?.related.map((node) => node.id) ?? [];
+  const roleSummary = useMemo(() => roleStatusSummary(props.roleStatuses), [props.roleStatuses]);
+  const sourceSummary =
+    props.mode === 'real' && props.activeSourceMode === 'mock'
+      ? 'Live source missing - mock fallback'
+      : props.activeSourceMode === 'real'
+        ? 'Live session source'
+        : 'Mock cascade source';
 
   return (
     <div className="explainer-workbench">
@@ -111,7 +119,12 @@ export function ExplainerWorkbench(props: Props) {
 
       <main className="explainer-layout">
         <section className="explainer-left" aria-label="Explainer source">
-          <SourceReceiptPanel session={props.session} mode={props.mode} onReplaceInput={props.onRun} />
+          <SourceReceiptPanel
+            session={props.session}
+            mode={props.activeSourceMode}
+            requestedMode={props.mode}
+            onReplaySource={props.onRun}
+          />
         </section>
 
         <section className="explainer-center" aria-label="Reasoning graph workspace">
@@ -137,6 +150,8 @@ export function ExplainerWorkbench(props: Props) {
             </span>
             <span>{props.state.data.nodes.length} nodes</span>
             <span>deterministic browser math</span>
+            <span>{sourceSummary}</span>
+            <span>{roleSummary}</span>
             <button
               type="button"
               className={`explainer-record${props.recording ? ' is-recording' : ''}`}
@@ -173,4 +188,15 @@ export function ExplainerWorkbench(props: Props) {
       </main>
     </div>
   );
+}
+
+function roleStatusSummary(statuses: Record<StakeholderRoleId, RoleImpactStatus>): string {
+  const values = Object.values(statuses);
+  const total = values.length;
+  const ready = values.filter((status) => status === 'done').length;
+  const fallback = values.filter((status) => status === 'error').length;
+  const running = values.filter((status) => status === 'loading').length;
+  if (running > 0) return `Roles ${ready + fallback}/${total} ready, ${running} running`;
+  if (ready + fallback === total) return `Roles ${ready}/${total} ready${fallback ? `, ${fallback} fallback` : ''}`;
+  return `Roles ${ready + fallback}/${total} ready`;
 }

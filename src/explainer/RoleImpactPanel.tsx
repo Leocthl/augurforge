@@ -12,23 +12,18 @@ export function RoleImpactPanel({ activeRole, statuses, results, onSelectRole }:
   const result = results[activeRole];
   const status = statuses[activeRole] ?? 'idle';
   const activeLabel = ROLE_DEFS.find((role) => role.id === activeRole)?.label ?? 'Stakeholder';
-  const panelId = `role-panel-${activeRole}`;
 
   return (
     <section className="role-panel" aria-label="Stakeholder impact analysis">
       <div className="inspector-eyebrow">Stakeholder impact</div>
-      <div className="role-tabs" role="tablist" aria-label="Stakeholder perspectives">
+      <div className="role-tabs" role="group" aria-label="Stakeholder perspectives">
         {ROLE_DEFS.map((role) => {
           const selected = activeRole === role.id;
           return (
             <button
               key={role.id}
-              id={`role-tab-${role.id}`}
               type="button"
-              role="tab"
-              aria-selected={selected}
-              aria-controls={`role-panel-${role.id}`}
-              tabIndex={selected ? 0 : -1}
+              aria-pressed={selected}
               className={`role-tab${selected ? ' is-active' : ''}`}
               onClick={() => onSelectRole(role.id)}
             >
@@ -41,14 +36,9 @@ export function RoleImpactPanel({ activeRole, statuses, results, onSelectRole }:
         })}
       </div>
 
-      <div
-        id={panelId}
-        className="role-panel-body"
-        role="tabpanel"
-        aria-labelledby={`role-tab-${activeRole}`}
-      >
+      <div className="role-panel-body" aria-live={status === 'loading' ? 'polite' : 'off'}>
         {!result ? (
-          <div className="role-empty" aria-live={status === 'loading' ? 'polite' : 'off'}>
+          <div className="role-empty">
             {emptyText(status, activeLabel)}
           </div>
         ) : (

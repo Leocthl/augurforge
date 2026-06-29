@@ -3,16 +3,20 @@ import type { AugurForgeSessionSnapshot, SessionAttachment } from '../core/sessi
 interface Props {
   session: AugurForgeSessionSnapshot | null;
   mode: 'mock' | 'real';
-  onReplaceInput: () => void;
+  requestedMode?: 'mock' | 'real';
+  onReplaySource: () => void;
 }
 
-export function SourceReceiptPanel({ session, mode, onReplaceInput }: Props) {
+export function SourceReceiptPanel({ session, mode, requestedMode = mode, onReplaySource }: Props) {
   const attachments = session?.input?.attachments ?? [];
   const metrics = session?.metrics ?? [];
+  const isFallback = requestedMode === 'real' && mode === 'mock';
   const title = session?.title ?? (mode === 'real' ? 'Live session' : 'Mock cascade');
   const summary =
     session?.latestSummary ??
-    'No live main-app session is attached. The standalone explainer can run from its mock cascade.';
+    (isFallback
+      ? 'No live main-app session is attached, so this run falls back to the mock cascade.'
+      : 'No live main-app session is attached. The standalone explainer can run from its mock cascade.');
 
   return (
     <aside className="source-receipt" aria-label="Explainer source receipt">
@@ -21,7 +25,7 @@ export function SourceReceiptPanel({ session, mode, onReplaceInput }: Props) {
           <div className="inspector-eyebrow">Source</div>
           <h2>{title}</h2>
         </div>
-        <span className={`source-mode is-${mode}`}>{mode === 'real' ? 'Real' : 'Mock'}</span>
+        <span className={`source-mode is-${mode}`}>{isFallback ? 'Mock fallback' : mode === 'real' ? 'Real' : 'Mock'}</span>
       </div>
       <p>{summary}</p>
 
@@ -65,8 +69,8 @@ export function SourceReceiptPanel({ session, mode, onReplaceInput }: Props) {
 
       <div className="source-footer">
         <span>{session ? `Updated ${formatUpdatedAt(session.updatedAt)}` : 'Decision-support, not advice'}</span>
-        <button type="button" className="source-replace" onClick={onReplaceInput}>
-          Replace input
+        <button type="button" className="source-replace" onClick={onReplaySource}>
+          Replay source
         </button>
       </div>
     </aside>
