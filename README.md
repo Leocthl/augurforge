@@ -15,7 +15,8 @@ npm run dev
 # open http://localhost:5173
 ```
 The whole experience runs offline on mock data: the streaming agent cascade, the Monte Carlo hero
-in 2D + 3D, the σ/μ/horizon sliders, the Animate toggle, and the Cerebras-vs-baseline speed race.
+in 2D + 3D, the sigma/mu/horizon sliders, the Animate toggle, the generated Black-Scholes sandbox,
+and the Cerebras-vs-baseline speed race.
 
 ## Live mode (Gemma-4-31b on Cerebras)
 ```bash
@@ -35,6 +36,9 @@ npm run dev:live         # runs Vite + the key-proxy together
 | `CEREBRAS_BASE_URL` | proxy only | default `https://api.cerebras.ai/v1` |
 | `CEREBRAS_MODEL` | proxy only | `gemma-4-31b` |
 | `PROXY_PORT` | proxy only | default `8787` |
+| `BASELINE_API_KEY` | proxy only | optional comparator for the speed race |
+| `BASELINE_BASE_URL` | proxy only | optional OpenAI-compatible baseline URL |
+| `BASELINE_MODEL` | proxy only | optional baseline model name |
 
 ## Scripts
 | Script | Does |
@@ -68,3 +72,8 @@ render-service/  Manim deep-path (stub)                                         
 - [x] Panels appear via **render-on-resolve** from mock events; the explainer **streams**.
 - [x] `tsc --noEmit` passes.
 - [x] `VITE_USE_LIVE=true` + key routes through the proxy with no code changes.
+
+## Local generated-model demo
+Use the uploader's **Generate** mode or the **Black-Scholes demo** button, then build. Gemma's live
+path emits a declarative model spec; mock mode uses the same validated fallback. The browser compiles
+that spec into deterministic Black-Scholes math, not arbitrary generated JavaScript.

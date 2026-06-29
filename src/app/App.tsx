@@ -23,6 +23,7 @@ import type {
   ViewKind,
 } from '../core/contract';
 import { runPipeline, runTweak, type PipelineInput } from '../core/pipeline';
+import type { GeneratedTemplateBuild } from '../core/generative';
 import { getTemplate } from '../templates';
 import { USE_LIVE } from '../core/cerebras';
 import { Renderer } from './Renderer';
@@ -32,12 +33,12 @@ import { SpeedHud } from './SpeedHud';
 const THEME = 'dark' as const;
 
 const AGENTS: { id: AgentId; label: string }[] = [
-  { id: 'orchestrator', label: 'Orchestrator' },
-  { id: 'modeler', label: 'Modeler 👁' },
-  { id: 'visualizer', label: 'Visualizer' },
-  { id: 'sensitivity', label: 'Sensitivity' },
-  { id: 'risk', label: 'Risk' },
-  { id: 'explainer', label: 'Explainer' },
+  { id: 'orchestrator', label: 'Gemma Orchestrator' },
+  { id: 'modeler', label: 'Gemma Vision Modeler' },
+  { id: 'visualizer', label: 'Gemma Visualizer' },
+  { id: 'sensitivity', label: 'Gemma Sensitivity' },
+  { id: 'risk', label: 'Gemma Risk' },
+  { id: 'explainer', label: 'Gemma Explainer' },
 ];
 
 function paramsFromSpec(spec: DashboardSpec): ParamSet {
@@ -62,8 +63,10 @@ export function App() {
   const [view, setView] = useState<ViewKind>(initial.spec.defaultView);
   const [animate, setAnimate] = useState(false);
   const [depth, setDepth] = useState<'entry' | 'expert'>('entry');
+  const [generatedBuild, setGeneratedBuild] = useState<GeneratedTemplateBuild | null>(null);
 
   const [agents, setAgents] = useState<Partial<Record<AgentId, AgentStatus>>>({});
+  const [agentErrors, setAgentErrors] = useState<Partial<Record<AgentId, string>>>({});
   const [explainer, setExplainer] = useState<Prose>({ text: '' });
   const [sensitivity, setSensitivity] = useState<Prose>({ text: '' });
   const [risk, setRisk] = useState<{ flags: RiskFlag[]; time?: TimeInfo }>({ flags: [] });
@@ -80,11 +83,15 @@ export function App() {
 
   const dragTimer = useRef<number | undefined>(undefined);
   const dragStart = useRef<{ id: string; from: number } | null>(null);
+  const cascadeAbortRef = useRef<AbortController | null>(null);
+  const tweakAbortRef = useRef<AbortController | null>(null);
 
   // --- the single event sink for the streaming cascade ---
   const onEvent = useCallback((e: AgentEvent) => {
     if (e.timeInfo) setLatestTime(e.timeInfo);
     setAgents((prev) => ({ ...prev, [e.agent]: e.status === 'token' ? 'start' : e.status }));
+    if (e.status === 'start') setAgentErrors((prev) => ({ ...prev, [e.agent]: undefined }));
+    if (e.status === 'error') setAgentErrors((prev) => ({ ...prev, [e.agent]: e.error ?? 'Agent failed' }));
 
     if (e.agent === 'explainer') {
       if (e.status === 'start') setExplainer({ text: '' });
@@ -118,9 +125,24 @@ export function App() {
     return s;
   }, []);
 
+  const runTweakWithAbort = useCallback(
+    (ctx: Parameters<typeof runTweak>[0]) => {
+      tweakAbortRef.current?.abort();
+      const controller = new AbortController();
+      tweakAbortRef.current = controller;
+      const gen = ++tweakGenRef.current;
+      void runTweak({ ...ctx, signal: controller.signal }, sinkFor(gen));
+    },
+    [sinkFor],
+  );
+
   // Full build cascade: orchestrator → modeler → visualizer, then the interpretive trio.
   const runCascade = useCallback(
     async (input: PipelineInput) => {
+      cascadeAbortRef.current?.abort();
+      tweakAbortRef.current?.abort();
+      const controller = new AbortController();
+      cascadeAbortRef.current = controller;
       const gen = ++tweakGenRef.current;
       const sink = sinkFor(gen);
       setBuilding(true);
@@ -128,9 +150,12 @@ export function App() {
       setSensitivity({ text: '' });
       setRisk({ flags: [] });
       setAgents({});
+      setAgentErrors({});
+      setGeneratedBuild(null);
       try {
-        const res = await runPipeline(input, sink);
-        const tmpl = getTemplate(res.spec.templateId);
+        const res = await runPipeline({ ...input, signal: controller.signal }, sink);
+        if (controller.signal.aborted || gen !== tweakGenRef.current) return;
+        const tmpl = res.generatedTemplate?.template ?? getTemplate(res.spec.templateId);
         const p = paramsFromSpec(res.spec);
         templateRef.current = tmpl;
         paramsRef.current = p;
@@ -138,14 +163,15 @@ export function App() {
         setSpec(res.spec);
         setParams(p);
         setView(res.spec.defaultView);
+        setGeneratedBuild(res.generatedTemplate ?? null);
         const s = tmpl.run(p);
         setSim(s);
         await runTweak(
-          { templateId: res.spec.templateId, params: p, metrics: s.metrics, depth: depthRef.current },
+          { templateId: res.spec.templateId, params: p, metrics: s.metrics, depth: depthRef.current, signal: controller.signal },
           sink,
         );
       } finally {
-        setBuilding(false);
+        if (gen === tweakGenRef.current) setBuilding(false);
       }
     },
     [onEvent, sinkFor],
@@ -158,7 +184,14 @@ export function App() {
   }, []);
 
   // Clear any pending debounced recompute on unmount.
-  useEffect(() => () => window.clearTimeout(dragTimer.current), []);
+  useEffect(
+    () => () => {
+      window.clearTimeout(dragTimer.current);
+      cascadeAbortRef.current?.abort();
+      tweakAbortRef.current?.abort();
+    },
+    [],
+  );
 
   // --- slider loop: free client-side math on drag, rate-limited agents on release ---
   const onSliderPointerDown = (id: string) => {
@@ -182,177 +215,269 @@ export function App() {
       ? { id, label: slider?.label, from: dragStart.current.from, to: p[id] }
       : undefined;
     dragStart.current = null;
-    const gen = ++tweakGenRef.current;
-    void runTweak(
-      { templateId: spec.templateId, params: p, metrics: s.metrics, depth: depthRef.current, changed },
-      sinkFor(gen),
-    );
+    runTweakWithAbort({ templateId: spec.templateId, params: p, metrics: s.metrics, depth: depthRef.current, changed });
   };
 
   const onDepth = (d: 'entry' | 'expert') => {
     setDepth(d);
     depthRef.current = d;
-    const gen = ++tweakGenRef.current;
-    void runTweak(
-      { templateId: spec.templateId, params: paramsRef.current, metrics: sim.metrics, depth: d },
-      sinkFor(gen),
-    );
+    runTweakWithAbort({ templateId: spec.templateId, params: paramsRef.current, metrics: sim.metrics, depth: d });
   };
 
   const showViewToggle = spec.views.length > 1;
+  const stackMode = USE_LIVE ? 'Live Cerebras' : 'Mock rehearsal';
 
   return (
-    <div className="app">
-      <header className="header">
-        <div className="brand">
+    <div className="app-shell">
+      <aside className="nav-rail">
+        <div className="brand-block">
           <div className="brand-mark">A</div>
           <div>
-            <h1>
-              AugurForge
-              <span className="tag-advice">decision-support · not advice</span>
-            </h1>
-            <div className="sub">Instant model sandbox for actuaries &amp; quants · Gemma-4-31b on Cerebras</div>
+            <div className="eyebrow">Cerebras x Gemma 4</div>
+            <h1>AugurForge</h1>
           </div>
         </div>
-        <span className="agent-chip">
-          <span className="led" style={{ background: USE_LIVE ? 'var(--ok)' : 'var(--accent-2)' }} />
-          {USE_LIVE ? 'LIVE · gemma-4-31b' : 'MOCK MODE'}
-        </span>
-      </header>
 
-      <main className="main">
-        <section className="stage">
+        <div className="rail-section">
+          <span className="rail-label">Stack proof</span>
+          <div className="stack-card">
+            <span className="status-dot" data-live={USE_LIVE} />
+            <div>
+              <b>{stackMode}</b>
+              <span>gemma-4-31b pinned</span>
+            </div>
+          </div>
+          <div className="stack-list">
+            <span>6 Gemma agents</span>
+            <span>Vision input</span>
+            <span>Generated runtime</span>
+            <span>Deterministic math</span>
+          </div>
+        </div>
+
+        <div className="rail-section">
+          <span className="rail-label">Demo moves</span>
+          <button
+            className="rail-action primary"
+            onClick={() =>
+              void runCascade({
+                mode: 'generate',
+                intent: 'Build a Black-Scholes option pricing sandbox with Greeks and a pricing curve',
+              })
+            }
+            disabled={building}
+          >
+            Generate model
+          </button>
+          <button
+            className="rail-action"
+            onClick={() => void runCascade({ intent: 'Explore portfolio ruin risk under volatility', mode: 'library' })}
+            disabled={building}
+          >
+            Monte Carlo base
+          </button>
+        </div>
+
+        <div className="rail-footer">
+          <span>Decision-support, not advice</span>
+          <span>Local demo, no deploy required</span>
+        </div>
+      </aside>
+
+      <main className="workspace">
+        <header className="topbar">
+          <div>
+            <div className="eyebrow">Live execution bench</div>
+            <h2>Gemma 4 shapes the model while Cerebras keeps every answer visibly fast.</h2>
+          </div>
+          <div className="topbar-metrics" aria-label="latest Cerebras timing">
+            <div>
+              <span>TTFT</span>
+              <b>{latestTime?.ttftMs != null ? `${latestTime.ttftMs} ms` : 'ready'}</b>
+            </div>
+            <div>
+              <span>tokens/s</span>
+              <b>{latestTime?.tokensPerSec != null ? Math.round(latestTime.tokensPerSec) : 'standby'}</b>
+            </div>
+          </div>
+        </header>
+
+        <section className="composer-panel">
+          <div className="composer-copy">
+            <span>Prompt, image, or screenshot</span>
+            <b>Generate a sandbox from intent, then tune it live.</b>
+          </div>
           <Uploader onRun={(input) => void runCascade(input)} disabled={building} />
+        </section>
 
-          <div className="controls">
-            {spec.sliders.map((s) => (
-              <div className="slider-row" key={s.id}>
-                <label>
-                  {s.label}
-                  <b>{formatVal(params[s.id] ?? s.value, s)}</b>
-                </label>
-                <input
-                  type="range"
-                  min={s.min}
-                  max={s.max}
-                  step={s.step}
-                  value={params[s.id] ?? s.value}
-                  onPointerDown={() => onSliderPointerDown(s.id)}
-                  onKeyDown={() => onSliderPointerDown(s.id)}
-                  onChange={(e) => onSliderInput(s.id, Number(e.target.value))}
-                  onPointerUp={() => onSliderRelease(s.id)}
-                  onKeyUp={() => onSliderRelease(s.id)}
-                />
+        <section className="workbench">
+          <div className="stage-column">
+            <section className="parameter-strip">
+              <div className="strip-head">
+                <span>Model parameters</span>
+                {building && <b>Gemma cascade running</b>}
               </div>
-            ))}
+              <div className="controls">
+                {spec.sliders.map((s) => (
+                  <div className="slider-row" key={s.id}>
+                    <label>
+                      {s.label}
+                      <b>{formatVal(params[s.id] ?? s.value, s)}</b>
+                    </label>
+                    <input
+                      type="range"
+                      min={s.min}
+                      max={s.max}
+                      step={s.step}
+                      value={params[s.id] ?? s.value}
+                      onPointerDown={() => onSliderPointerDown(s.id)}
+                      onKeyDown={() => onSliderPointerDown(s.id)}
+                      onChange={(e) => onSliderInput(s.id, Number(e.target.value))}
+                      onPointerUp={() => onSliderRelease(s.id)}
+                      onKeyUp={() => onSliderRelease(s.id)}
+                    />
+                  </div>
+                ))}
 
-            <div className="spacer" />
+                <div className="control-cluster">
+                  {showViewToggle && (
+                    <div className="seg" role="tablist" aria-label="view">
+                      {spec.views.map((v) => (
+                        <button key={v} className={view === v ? 'active' : ''} onClick={() => setView(v)}>
+                          {v.toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
-            {showViewToggle && (
-              <div className="seg" role="tablist" aria-label="view">
-                {spec.views.map((v) => (
-                  <button key={v} className={view === v ? 'active' : ''} onClick={() => setView(v)}>
-                    {v.toUpperCase()}
-                  </button>
+                  <label className="toggle">
+                    <input type="checkbox" checked={animate} onChange={(e) => setAnimate(e.target.checked)} />
+                    Animate
+                  </label>
+                </div>
+              </div>
+            </section>
+
+            <section className="chart-wrap">
+              <div className="chart-title">
+                <div className="title-line">
+                  <h2>{spec.title}</h2>
+                  {generatedBuild && <span className="generated-badge">Generated by Gemma 4</span>}
+                </div>
+                {spec.subtitle && <span>{spec.subtitle}</span>}
+                {generatedBuild && <span className="generated-note">{generatedBuild.note}</span>}
+              </div>
+              <Renderer template={template} sim={sim} view={view} animate={animate} theme={THEME} />
+            </section>
+          </div>
+
+          <aside className="insight-rail">
+            <SpeedHud latest={latestTime} />
+
+            <div className="panel">
+              <div className="panel-head">
+                <span className="panel-title">Metrics</span>
+              </div>
+              <div className="metrics">
+                {sim.metrics.map((m) => (
+                  <div className="metric" key={m.id}>
+                    <div className="label">{m.label}</div>
+                    <div className="value">{m.value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {generatedBuild && (
+              <div className="panel generated-panel">
+                <div className="panel-head">
+                  <span className="panel-title">Generated model</span>
+                  {generatedBuild.fallbackUsed && <span className="panel-time warn">fallback</span>}
+                </div>
+                <p className="prose compact">
+                  {generatedBuild.generatedSpec.title ?? spec.title}. Compiled from a validated Gemma 4 model spec
+                  into deterministic browser math.
+                </p>
+              </div>
+            )}
+
+            <div className="panel agent-panel">
+              <div className="panel-head">
+                <span className="panel-title">Gemma agent cascade</span>
+                {building && <span className="panel-time">streaming</span>}
+              </div>
+              <div className="cascade">
+                {AGENTS.map((a) => (
+                  <span key={a.id} className={`agent-chip ${agents[a.id] ?? ''}`}>
+                    <span className="led" />
+                    {a.label}
+                  </span>
+                ))}
+              </div>
+              {Object.entries(agentErrors).some(([, message]) => message) && (
+                <div className="agent-errors">
+                  {Object.entries(agentErrors).map(([agent, message]) =>
+                    message ? (
+                      <div className="agent-error" key={agent}>
+                        <b>{agent}</b>
+                        <span>{message}</span>
+                      </div>
+                    ) : null,
+                  )}
+                </div>
+              )}
+            </div>
+
+            {(risk.flags.length > 0 || agents.risk) && (
+              <div className="panel">
+                <div className="panel-head">
+                  <span className="panel-title">Risk flags</span>
+                  {risk.time?.totalMs != null && <span className="panel-time">{risk.time.totalMs} ms</span>}
+                </div>
+                {risk.flags.map((f, i) => (
+                  <div className={`risk-flag ${f.level}`} key={i}>
+                    <span className="dot" />
+                    <div>
+                      {f.text} {f.ref && <span className="ref">/ {f.ref}</span>}
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
 
-            <label className="toggle">
-              <input type="checkbox" checked={animate} onChange={(e) => setAnimate(e.target.checked)} />
-              Animate
-            </label>
-          </div>
-
-          <div className="chart-wrap">
-            <div className="chart-title">
-              <h2>{spec.title}</h2>
-              {spec.subtitle && <span>{spec.subtitle}</span>}
-            </div>
-            <Renderer template={template} sim={sim} view={view} animate={animate} theme={THEME} />
-          </div>
-        </section>
-
-        <aside className="sidebar">
-          <div className="panel">
-            <div className="panel-head">
-              <span className="panel-title">Metrics</span>
-            </div>
-            <div className="metrics">
-              {sim.metrics.map((m) => (
-                <div className="metric" key={m.id}>
-                  <div className="label">{m.label}</div>
-                  <div className="value">{m.value}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {(risk.flags.length > 0 || agents.risk) && (
-            <div className="panel">
-              <div className="panel-head">
-                <span className="panel-title">Risk flags</span>
-                {risk.time?.totalMs != null && <span className="panel-time">{risk.time.totalMs} ms</span>}
-              </div>
-              {risk.flags.map((f, i) => (
-                <div className={`risk-flag ${f.level}`} key={i}>
-                  <span className="dot" />
-                  <div>
-                    {f.text} {f.ref && <span className="ref">· {f.ref}</span>}
+            {(explainer.text || agents.explainer) && (
+              <div className="panel">
+                <div className="panel-head">
+                  <span className="panel-title">Explainer</span>
+                  <div className="seg depth-seg">
+                    <button className={depth === 'entry' ? 'active' : ''} onClick={() => onDepth('entry')}>
+                      Entry
+                    </button>
+                    <button className={depth === 'expert' ? 'active' : ''} onClick={() => onDepth('expert')}>
+                      Expert
+                    </button>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+                <p className="prose">
+                  {explainer.text}
+                  {agents.explainer === 'start' && <span className="stream-caret" />}
+                </p>
+              </div>
+            )}
 
-          {(explainer.text || agents.explainer) && (
-            <div className="panel">
-              <div className="panel-head">
-                <span className="panel-title">Explainer</span>
-                <div className="seg depth-seg">
-                  <button className={depth === 'entry' ? 'active' : ''} onClick={() => onDepth('entry')}>
-                    Entry
-                  </button>
-                  <button className={depth === 'expert' ? 'active' : ''} onClick={() => onDepth('expert')}>
-                    Expert
-                  </button>
+            {(sensitivity.text || agents.sensitivity) && (
+              <div className="panel">
+                <div className="panel-head">
+                  <span className="panel-title">Sensitivity</span>
                 </div>
+                <p className="prose">
+                  {sensitivity.text}
+                  {agents.sensitivity === 'start' && <span className="stream-caret" />}
+                </p>
               </div>
-              <p className="prose">
-                {explainer.text}
-                {agents.explainer === 'start' && <span className="stream-caret" />}
-              </p>
-            </div>
-          )}
-
-          {(sensitivity.text || agents.sensitivity) && (
-            <div className="panel">
-              <div className="panel-head">
-                <span className="panel-title">Sensitivity</span>
-              </div>
-              <p className="prose">
-                {sensitivity.text}
-                {agents.sensitivity === 'start' && <span className="stream-caret" />}
-              </p>
-            </div>
-          )}
-
-          <SpeedHud latest={latestTime} />
-
-          <div className="panel">
-            <div className="panel-head">
-              <span className="panel-title">Agent cascade</span>
-            </div>
-            <div className="cascade">
-              {AGENTS.map((a) => (
-                <span key={a.id} className={`agent-chip ${agents[a.id] ?? ''}`}>
-                  <span className="led" />
-                  {a.label}
-                </span>
-              ))}
-            </div>
-          </div>
-        </aside>
+            )}
+          </aside>
+        </section>
       </main>
     </div>
   );

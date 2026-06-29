@@ -1,18 +1,28 @@
-/**
- * sensitivity.ts — why the outcome moved; which driver dominates. [OWNER: A]
- * Streamed prose. STUB content keyed off the scenario so the demo narrative changes live.
- * TODO(branch: feat/agents): real prompt per BUILD_SPEC §7.
- */
 import type { OnEvent, ProseResult } from '../contract';
 import { chat } from '../cerebras';
 import type { TweakContext } from '../pipeline';
-import { errMsg } from './shared';
+import { errMsg, isAbortError } from './shared';
 
 const SYSTEM =
-  'You are AugurForge’s Sensitivity analyst. In 2–3 sentences explain why the outcome moved ' +
-  'and which input dominates. Decision-support only — not advice.'; // TODO(branch: feat/agents)
+  'You are AugurForge Sensitivity. In 2 concise sentences, explain why the deterministic metrics moved and which input dominates. ' +
+  'Ground every claim in the provided params and metrics. Decision-support only, not advice.';
 
 function mockText(ctx: TweakContext): string {
+  if (ctx.templateId.startsWith('generated:black-scholes')) {
+    const metric = ctx.metrics.find((m) => m.id === 'call_price')?.value ?? 'n/a';
+    if (ctx.changed) {
+      const dir = ctx.changed.to >= ctx.changed.from ? 'raising' : 'lowering';
+      return (
+        `${dir} ${ctx.changed.label ?? ctx.changed.id} moved the call price to ${metric}. ` +
+        `Volatility and the spot-to-strike gap dominate this generated option sandbox; rate and maturity mostly tune the discounting and time value.`
+      );
+    }
+    return (
+      `At spot ${ctx.params.spot} versus strike ${ctx.params.strike}, the call price is ${metric}. ` +
+      `The strongest drivers are moneyness and volatility, with Vega showing how much one volatility point changes the option value.`
+    );
+  }
+
   const ruin = ctx.metrics.find((m) => m.id === 'p_ruin')?.value ?? 'n/a';
   const sigma = ctx.params.sigma;
   if (ctx.changed) {
@@ -37,10 +47,13 @@ export async function runSensitivity(ctx: TweakContext, onEvent: OnEvent): Promi
       {
         messages: [
           { role: 'system', content: SYSTEM },
-          { role: 'user', content: JSON.stringify({ params: ctx.params, metrics: ctx.metrics, changed: ctx.changed }) },
+          { role: 'user', content: JSON.stringify({ templateId: ctx.templateId, params: ctx.params, metrics: ctx.metrics, changed: ctx.changed }) },
         ],
         stream: true,
         reasoningEffort: 'low',
+        temperature: 0.2,
+        maxTokens: 190,
+        signal: ctx.signal,
         mock: { text: mockText(ctx) },
       },
       (t) => {
@@ -52,6 +65,7 @@ export async function runSensitivity(ctx: TweakContext, onEvent: OnEvent): Promi
     onEvent({ agent: 'sensitivity', status: 'done', result, timeInfo: res.timeInfo });
     return result;
   } catch (err) {
+    if (isAbortError(err)) return { text: streamed };
     onEvent({ agent: 'sensitivity', status: 'error', error: errMsg(err) });
     return { text: streamed };
   }
