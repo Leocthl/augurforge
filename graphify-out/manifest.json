@@ -145,8 +145,8 @@
     "semantic_hash": "9acac40720265abb2f82e5a9f3568084"
   },
   "src/explainer/DepthExplainer.tsx": {
-    "mtime": 1782747288.4793866,
-    "ast_hash": "6524f0c3e1db5f8b28a73e412e57efba",
+    "mtime": 1782753291.6324954,
+    "ast_hash": "6a0ebb2e89149fc332bd9f80c335dfe1",
     "semantic_hash": ""
   },
   "src/explainer/ReasoningPanel.tsx": {
@@ -155,8 +155,8 @@
     "semantic_hash": ""
   },
   "src/explainer/ThinkingGraph.tsx": {
-    "mtime": 1782745396.5062926,
-    "ast_hash": "c48154b4498b7caa4f650109bd3ac028",
+    "mtime": 1782753291.134193,
+    "ast_hash": "f5b13aa30b1eeb5b2723975ef4aa20d4",
     "semantic_hash": ""
   },
   "src/explainer/dev.tsx": {
@@ -170,8 +170,8 @@
     "semantic_hash": "4463ad06fcb53ecca8ab1d544fd997b8"
   },
   "src/explainer/index.ts": {
-    "mtime": 1782750533.636176,
-    "ast_hash": "c4785f3afb831cff8ddc9cc5759f4977",
+    "mtime": 1782753291.4415932,
+    "ast_hash": "76d2e6c0fbdfe2df6332d3ec41145108",
     "semantic_hash": ""
   },
   "src/explainer/liveSource.ts": {
@@ -480,8 +480,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1782747143.4189916,
-    "ast_hash": "59aea59a59ad50593f491452cc36b4b8",
+    "mtime": 1782755953.7074516,
+    "ast_hash": "6b2ba7321e99289053cf4ed52afc31ea",
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-06-29-explainer-polish.md": {
@@ -505,13 +505,13 @@
     "semantic_hash": ""
   },
   "explainer.html": {
-    "mtime": 1782732731.903658,
-    "ast_hash": "290bbceb2f5cd9de4d137446aa44d6bf",
+    "mtime": 1782755960.638126,
+    "ast_hash": "d835d30de24caded763248ba2209051b",
     "semantic_hash": ""
   },
   "index.html": {
-    "mtime": 1782667286.6176803,
-    "ast_hash": "1b10b3b2c2390fb0d605679f79f5cab0",
+    "mtime": 1782755960.6371188,
+    "ast_hash": "51d5c928d86af3bc1cc3413ccd4a6d2a",
     "semantic_hash": ""
   },
   "plans/PERSON_A_PLAN.md": {
@@ -535,8 +535,8 @@
     "semantic_hash": ""
   },
   "warroom.html": {
-    "mtime": 1782734651.9303777,
-    "ast_hash": "777c49996d49c4c6fb1f1536a9addec3",
+    "mtime": 1782755960.6401138,
+    "ast_hash": "809fd9646da4158b378b9164d41a3a55",
     "semantic_hash": ""
   },
   "src/mock/sample-image.png": {
@@ -544,24 +544,9 @@
     "ast_hash": "2c0cef9a1a5a3458899393d49e4e2322",
     "semantic_hash": ""
   },
-  "dist-explainer/explainer.html": {
-    "mtime": 1782745852.4996662,
-    "ast_hash": "bdad76db483a13cf8aefa97101984857",
-    "semantic_hash": ""
-  },
   "public/warroom/situation-room-bg.png": {
     "mtime": 1782744026.5038514,
     "ast_hash": "406562110d1240564e86360062ec8eb6",
-    "semantic_hash": ""
-  },
-  "dist-explainer/warroom/situation-room-bg.png": {
-    "mtime": 1782744026.5038514,
-    "ast_hash": "406562110d1240564e86360062ec8eb6",
-    "semantic_hash": ""
-  },
-  "dist-explainer/assets/explainer-CS3uGk4U.js": {
-    "mtime": 1782745852.4905367,
-    "ast_hash": "d6bd933feb43ca7e4b983903d2f7c8a5",
     "semantic_hash": ""
   },
   "src/core/attachments.test.ts": {
@@ -577,21 +562,6 @@
   "src/core/sessionContext.ts": {
     "mtime": 1782747518.026752,
     "ast_hash": "7c127665a17b2f91c72ae6986bd992bb",
-    "semantic_hash": ""
-  },
-  ".playwright-mcp/page-2026-06-29T15-11-39-899Z.yml": {
-    "mtime": 1782745899.9005249,
-    "ast_hash": "5951d51dd2a3b5f73807af6aecdf8842",
-    "semantic_hash": ""
-  },
-  ".playwright-mcp/page-2026-06-29T15-11-54-127Z.yml": {
-    "mtime": 1782745914.1316082,
-    "ast_hash": "145e99f42dc0148bf26c3e5de2fa3176",
-    "semantic_hash": ""
-  },
-  ".playwright-mcp/page-2026-06-29T15-12-05-923Z.yml": {
-    "mtime": 1782745925.9258595,
-    "ast_hash": "fc35325310139a54280879f0bfc92dae",
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-06-29-attachment-system-integration.md": {
@@ -645,13 +615,13 @@
     "semantic_hash": ""
   },
   "src/warroom/reportExport.test.ts": {
-    "mtime": 1782749550.38761,
-    "ast_hash": "867e50a3f251eab5cc78dcd7c291aa23",
+    "mtime": 1782751383.7410555,
+    "ast_hash": "96a9ad1ef0380e64eb272701f1bbcee7",
     "semantic_hash": ""
   },
   "src/warroom/reportExport.ts": {
-    "mtime": 1782750715.6486125,
-    "ast_hash": "0f9a944a7796dc55447dae33731c8857",
+    "mtime": 1782751331.176187,
+    "ast_hash": "70825c3302618b45778a0b62cb137f4c",
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-06-29-standalone-explainer-workbench.md": {
@@ -680,13 +650,43 @@
     "semantic_hash": ""
   },
   "src/explainer/roleAnalysis.test.ts": {
-    "mtime": 1782750473.783077,
-    "ast_hash": "4708945909826b8099fe40fcb485870d",
+    "mtime": 1782753291.1941102,
+    "ast_hash": "0e71d3a1495b27b498f8d9795df192fd",
     "semantic_hash": ""
   },
   "src/explainer/roleAnalysis.ts": {
-    "mtime": 1782750528.2879214,
-    "ast_hash": "60250bcd60089e376dce90ff21a9514d",
+    "mtime": 1782753291.195623,
+    "ast_hash": "7449510a0fc81ce405644b8aa91a1f1f",
+    "semantic_hash": ""
+  },
+  "src/explainer/TranscriptStrip.tsx": {
+    "mtime": 1782753291.13579,
+    "ast_hash": "a4ffcd00af1f95dc057a49f956489a22",
+    "semantic_hash": ""
+  },
+  "src/explainer/ExplainerWorkbench.tsx": {
+    "mtime": 1782753291.6355073,
+    "ast_hash": "5a2cfae345f22b911f5251d2bbda9f79",
+    "semantic_hash": ""
+  },
+  "src/explainer/GroupInspector.tsx": {
+    "mtime": 1782753291.2526605,
+    "ast_hash": "57c969c19956ec315d6456d12ef2dc3d",
+    "semantic_hash": ""
+  },
+  "src/explainer/RoleImpactPanel.tsx": {
+    "mtime": 1782753291.5395277,
+    "ast_hash": "1d9dc7fce571cf61c6704603c36f2bab",
+    "semantic_hash": ""
+  },
+  "src/explainer/SourceReceiptPanel.tsx": {
+    "mtime": 1782753291.540035,
+    "ast_hash": "f7dbf6b332890ed97df83ea4828e9613",
+    "semantic_hash": ""
+  },
+  "public/favicon.svg": {
+    "mtime": 1782755953.7089648,
+    "ast_hash": "ce58caa46b1b4de54da9c12b105af8c7",
     "semantic_hash": ""
   }
 }
