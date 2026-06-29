@@ -6,6 +6,9 @@
  * restyled for AugurForge's light register (white panel, hairline border, group-colour left stripe).
  * Plus the ambient office one-liners idle workers murmur, so the room feels alive like the repo.
  */
+import type { AgentId } from '../core/contract';
+import { AGENT_ORDER, AGENT_PANIC_LINES, AGENT_RESPONSIBILITY } from './agents';
+
 const FONT = "600 12px 'Geist Variable', ui-sans-serif, system-ui, sans-serif";
 const PAD = 7;
 const LH = 15;
@@ -158,4 +161,24 @@ export const AMBIENT: string[] = [
 
 export function ambientFor(seed: number): string {
   return AMBIENT[Math.abs(Math.floor(seed)) % AMBIENT.length];
+}
+
+export function ambientForAgent(agentId: AgentId, seed: number): string {
+  const responsibility = AGENT_RESPONSIBILITY[agentId];
+  const short = responsibility.split(',')[0].toLowerCase();
+  const lines = [
+    `checking ${short}`,
+    `reviewing ${agentId} notes`,
+    ambientFor(seed),
+  ];
+  return lines[Math.abs(Math.floor(seed)) % lines.length];
+}
+
+export function panicForAgent(agentId: AgentId, seed: number): string {
+  const lines = AGENT_PANIC_LINES[agentId];
+  return lines[Math.abs(Math.floor(seed)) % lines.length];
+}
+
+export function agentForBubbleIndex(index: number): AgentId {
+  return AGENT_ORDER[Math.abs(index) % AGENT_ORDER.length];
 }

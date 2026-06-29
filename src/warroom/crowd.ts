@@ -49,6 +49,10 @@ export interface GroupStatus {
   caption: string;
 }
 
+export interface WorkerMotion {
+  mode: 'idle' | 'active' | 'panic';
+}
+
 // --- deterministic PRNG (mulberry32) ----------------------------------------
 
 function hashSeed(str: string): number {
@@ -134,36 +138,38 @@ function angLerp(a: number, b: number, t: number): number {
  * Advance one worker by dt seconds. Energetic (active group) workers move faster; everyone is
  * softly leashed to home and bounces off furniture (board/desk) and the room edges.
  */
-export function stepWorker(w: Worker, scene: SceneLayout, energetic: boolean, dt: number): void {
-  w.turnClock -= dt;
+export function stepWorker(w: Worker, scene: SceneLayout, motion: WorkerMotion, dt: number): void {
+  const panic = motion.mode === 'panic';
+  const energetic = motion.mode === 'active' || panic;
+  w.turnClock -= dt * (panic ? 1.8 : 1);
   if (w.turnClock <= 0) {
     const dx = w.hx - w.x;
     const dy = w.hy - w.y;
     const dist = Math.hypot(dx, dy);
     const toHome = Math.atan2(dy, dx);
-    const wander = w.ang + (Math.random() - 0.5) * 1.6;
-    const pull = Math.min(1, dist / w.radius) * 0.7;
+    const wander = w.ang + (Math.random() - 0.5) * (panic ? 2.5 : 1.6);
+    const pull = Math.min(1, dist / w.radius) * (panic ? 0.45 : 0.7);
     w.ang = angLerp(wander, toHome, pull);
-    w.turnClock = 0.8 + Math.random() * 2.0;
+    w.turnClock = panic ? 0.18 + Math.random() * 0.45 : 0.8 + Math.random() * 2.0;
   }
 
-  const speed = w.baseSpeed * (energetic ? 1.7 : 1);
+  const speed = w.baseSpeed * (panic ? 2.65 : energetic ? 1.7 : 1);
   const vx = Math.cos(w.ang) * speed;
   const vy = Math.sin(w.ang) * speed;
   let nx = w.x + vx * dt;
   let ny = w.y + vy * dt;
 
   // Hard leash so clusters never disperse across the room.
-  if (Math.hypot(nx - w.hx, ny - w.hy) > w.radius * 1.3) {
-    w.ang = Math.atan2(w.hy - w.y, w.hx - w.x) + (Math.random() - 0.5) * 0.6;
-    w.turnClock = 0.3;
+  if (Math.hypot(nx - w.hx, ny - w.hy) > w.radius * (panic ? 1.75 : 1.3)) {
+    w.ang = Math.atan2(w.hy - w.y, w.hx - w.x) + (Math.random() - 0.5) * (panic ? 1.1 : 0.6);
+    w.turnClock = panic ? 0.12 : 0.3;
     nx = w.x;
     ny = w.y;
   }
 
   if (isBlocked(scene, nx, ny)) {
-    w.ang += Math.PI * 0.65 + (Math.random() - 0.5) * 0.8;
-    w.turnClock = 0.25;
+    w.ang += Math.PI * 0.65 + (Math.random() - 0.5) * (panic ? 1.3 : 0.8);
+    w.turnClock = panic ? 0.1 : 0.25;
   } else {
     w.x = nx;
     w.y = ny;
@@ -172,7 +178,7 @@ export function stepWorker(w: Worker, scene: SceneLayout, energetic: boolean, dt
   w.x = Math.max(6, Math.min(scene.width - 6, w.x));
   w.y = Math.max(24, Math.min(scene.height - 6, w.y));
 
-  w.frameClock += dt * 1000;
+  w.frameClock += dt * 1000 * (panic ? 1.7 : 1);
   w.frame = walkFrame(w.frameClock);
   w.dir = dirFromVelocity(vx, vy, w.dir);
 }

@@ -7,8 +7,17 @@
  * scene — the active group lights up, the camera pushes in, and its streamed tokens fill a thought
  * bubble. It is an aesthetic MULTI-AGENT VIEW of the same process the main app runs. Mock-first.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AgentEvent, OnEvent } from '../core/contract';
+import {
+  type FormEvent,
+  type PointerEvent as ReactPointerEvent,
+  type WheelEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import type { AgentEvent, AgentId, OnEvent, TimeInfo } from '../core/contract';
 import {
   applyEvent,
   initReasoning,
@@ -18,13 +27,17 @@ import {
   type EventSource,
   type ReasoningState,
 } from '../explainer';
-import { AGENT_LABEL, AGENT_ORDER, GROUP_COLOR } from './agents';
-import { buildScene, type BoardContext, type SceneLayout } from './scene';
+import { AGENT_LABEL, AGENT_ORDER, AGENT_RESPONSIBILITY, GROUP_COLOR } from './agents';
+import { clampCamera, focusCamera, panCamera, screenToWorld, zoomAt, type CameraView } from './camera';
+import { buildScene, hitTestDesk, type BoardContext, type SceneLayout } from './scene';
 import { buildCrowd, stepWorker, totalFigures, type Crowd, type GroupStatus } from './crowd';
 import { loadGroupTraits } from './traits';
 import { bakeAtlas } from './bakeAtlas';
-import { ambientFor } from './bubbles';
-import { drawScene, type AmbientBubble, type CameraView, type SceneState } from './draw';
+import { ambientForAgent, panicForAgent } from './bubbles';
+import { drawScene, type AmbientBubble, type SceneState } from './draw';
+import { deriveAgentDossiers, type AgentDossier } from './agentDossier';
+import { startQuestionRun, type QuestionTurn } from './questionRun';
+import { downloadReportHtml, generateReportPreview, type GeneratedReport } from './reportExport';
 import {
   pipelineInputFromSession,
   readAugurForgeSession,
@@ -120,25 +133,35 @@ function deriveBoardContext(state: ReasoningState, modeLabel: string, session: A
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
-function clampCam(x: number, y: number, zoom: number, w: number, h: number): CameraView {
-  const hw = w / (2 * zoom);
-  const hh = h / (2 * zoom);
-  return {
-    zoom,
-    x: hw * 2 <= w ? Math.max(hw, Math.min(w - hw, x)) : w / 2,
-    y: hh * 2 <= h ? Math.max(hh, Math.min(h - hh, y)) : h / 2,
-  };
-}
-
 export function WarRoom({ source }: { source?: EventSource }) {
   const [latest, setLatest] = useState<{ ttftMs?: number; tokensPerSec?: number }>({});
   const [useReal, setUseReal] = useState(LIVE_ENV);
   const [figureCount, setFigureCount] = useState(0);
   const [session, setSession] = useState<AugurForgeSessionSnapshot | null>(() => readAugurForgeSession());
+  const [selectedAgentId, setSelectedAgentId] = useState<AgentId | null>(null);
+  const [hoverAgentId, setHoverAgentId] = useState<AgentId | null>(null);
+  const [questionText, setQuestionText] = useState('');
+  const [questionRunning, setQuestionRunning] = useState(false);
+  const [questionError, setQuestionError] = useState('');
+  const [history, setHistory] = useState<QuestionTurn[]>([]);
+  const [report, setReport] = useState<GeneratedReport | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportBusy, setReportBusy] = useState(false);
+  const [reportError, setReportError] = useState('');
+  const [renderVersion, setRenderVersion] = useState(0);
 
   const stopRef = useRef<null | (() => void)>(null);
   const stateRef = useRef<ReasoningState>(initReasoning(performance.now()));
   const sessionRef = useRef<AugurForgeSessionSnapshot | null>(session);
+  const latestByAgentRef = useRef<Partial<Record<AgentId, TimeInfo>>>({});
+  const questionStopRef = useRef<null | (() => void)>(null);
+  const questionBoardRef = useRef<null | { question: string; answer?: string; running: boolean }>(null);
+  const draggingRef = useRef<null | { id: number; x: number; y: number; moved: boolean }>(null);
+  const manualCameraUntilRef = useRef(0);
+  const selectedAgentIdRef = useRef<AgentId | null>(selectedAgentId);
+  const hoverAgentIdRef = useRef<AgentId | null>(hoverAgentId);
+  const questionRunningRef = useRef(questionRunning);
+  const useRealRef = useRef(useReal);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const sceneRef = useRef<SceneLayout | null>(null);
   const crowdRef = useRef<Crowd | null>(null);
@@ -151,12 +174,32 @@ export function WarRoom({ source }: { source?: EventSource }) {
 
   const onEvent: OnEvent = useCallback((e: AgentEvent) => {
     stateRef.current = applyEvent(stateRef.current, e, performance.now());
-    if (e.timeInfo) setLatest({ ttftMs: e.timeInfo.ttftMs, tokensPerSec: e.timeInfo.tokensPerSec });
+    if (e.timeInfo) {
+      latestByAgentRef.current = { ...latestByAgentRef.current, [e.agent]: e.timeInfo };
+      setLatest({ ttftMs: e.timeInfo.ttftMs, tokensPerSec: e.timeInfo.tokensPerSec });
+    }
+    setRenderVersion((value) => value + 1);
   }, []);
 
   useEffect(() => {
     sessionRef.current = session;
   }, [session]);
+
+  useEffect(() => {
+    selectedAgentIdRef.current = selectedAgentId;
+  }, [selectedAgentId]);
+
+  useEffect(() => {
+    hoverAgentIdRef.current = hoverAgentId;
+  }, [hoverAgentId]);
+
+  useEffect(() => {
+    questionRunningRef.current = questionRunning;
+  }, [questionRunning]);
+
+  useEffect(() => {
+    useRealRef.current = useReal;
+  }, [useReal]);
 
   useEffect(() => {
     setSession(readAugurForgeSession());
@@ -165,11 +208,31 @@ export function WarRoom({ source }: { source?: EventSource }) {
 
   const run = useCallback(() => {
     stopRef.current?.();
+    questionStopRef.current?.();
     stateRef.current = initReasoning(performance.now());
+    latestByAgentRef.current = {};
+    questionBoardRef.current = null;
+    setQuestionRunning(false);
+    setQuestionError('');
+    setHistory([]);
+    setRenderVersion((value) => value + 1);
     setLatest({});
     const src = source ?? (useReal ? realPipelineSource('entry', pipelineInputFromSession(sessionRef.current)) : mockEventSource());
     stopRef.current = src.start(onEvent);
   }, [source, useReal, onEvent]);
+
+  const statusesForUi = useMemo(() => deriveStatuses(stateRef.current), [renderVersion]);
+  const dossiers = useMemo(
+    () =>
+      deriveAgentDossiers({
+        state: stateRef.current,
+        statuses: statusesForUi,
+        latestByAgent: latestByAgentRef.current,
+        session,
+      }),
+    [renderVersion, session, statusesForUi],
+  );
+  const selectedDossier = dossiers.find((dossier) => dossier.agentId === selectedAgentId) ?? null;
 
   // Bake the Gemma-authored sprite atlas once on mount.
   useEffect(() => {
@@ -216,7 +279,7 @@ export function WarRoom({ source }: { source?: EventSource }) {
       const scene = buildScene(cssW, cssH, ROLE);
       sceneRef.current = scene;
       crowdRef.current = buildCrowd(scene);
-      camRef.current = { x: cssW / 2, y: cssH / 2, zoom: 1 };
+      camRef.current = clampCamera({ x: cssW / 2, y: cssH / 2, zoom: 1 }, { width: scene.width, height: scene.height, viewW: cssW, viewH: cssH });
       setFigureCount(totalFigures(crowdRef.current));
     };
 
@@ -236,7 +299,13 @@ export function WarRoom({ source }: { source?: EventSource }) {
         if (picks.length >= 3 || g.id === activeId || g.workers.length === 0) return;
         if ((cycle + gi) % 2 !== 0) return;
         const wi = (cycle * 5 + gi * 11) % g.workers.length;
-        picks.push({ gi, wi, text: ambientFor(gi * 23 + wi * 3 + cycle * 5) });
+        picks.push({
+          gi,
+          wi,
+          text: questionRunningRef.current
+            ? panicForAgent(g.id, gi * 31 + wi + cycle)
+            : ambientForAgent(g.id, gi * 23 + wi * 3 + cycle * 5),
+        });
       });
       ambientRef.current = { at: t * 1000, picks };
       return picks;
@@ -255,29 +324,42 @@ export function WarRoom({ source }: { source?: EventSource }) {
         const activeId = stateRef.current.active;
 
         for (const g of crowd.groups) {
-          const energetic = statuses[g.id]?.thinking === true;
-          for (const w of g.workers) stepWorker(w, scene, energetic, dt);
+          const mode = questionRunningRef.current ? 'panic' : statuses[g.id]?.thinking === true ? 'active' : 'idle';
+          for (const w of g.workers) stepWorker(w, scene, { mode }, dt);
         }
 
-        const active = activeId ? crowd.groups.find((g) => g.id === activeId) : undefined;
-        const target = active
-          ? clampCam(active.home.x, active.home.y, 1.5, cssW, cssH)
-          : { x: cssW / 2, y: cssH / 2, zoom: 1 };
-        const k = 1 - Math.pow(0.0001, dt);
-        const cam = camRef.current;
-        camRef.current = {
-          x: lerp(cam.x, target.x, k),
-          y: lerp(cam.y, target.y, k),
-          zoom: lerp(cam.zoom, target.zoom, k),
-        };
+        if (performance.now() > manualCameraUntilRef.current) {
+          const active = activeId ? crowd.groups.find((g) => g.id === activeId) : undefined;
+          const bounds = { width: scene.width, height: scene.height, viewW: cssW, viewH: cssH };
+          const target = active
+            ? focusCamera(active.home, 1.5, bounds)
+            : focusCamera({ x: scene.width / 2, y: scene.height / 2 }, 1, bounds);
+          const k = 1 - Math.pow(0.0001, dt);
+          const cam = camRef.current;
+          camRef.current = {
+            x: lerp(cam.x, target.x, k),
+            y: lerp(cam.y, target.y, k),
+            zoom: lerp(cam.zoom, target.zoom, k),
+          };
+        }
 
         const modeLabel = source
           ? 'Injected event stream'
-          : useReal
+          : useRealRef.current
             ? LIVE_ENV
               ? 'Live Cerebras Gemma 4'
               : 'Pipeline path, mock LLM'
             : 'Mock rehearsal';
+        const board = deriveBoardContext(stateRef.current, modeLabel, sessionRef.current);
+        const questionBoard = questionBoardRef.current;
+        const boardWithQuestion = questionBoard
+          ? {
+              ...board,
+              phase: questionBoard.running ? 'Swarm investigating' : 'Swarm answered',
+              summary: questionBoard.answer || questionBoard.question,
+              details: [`Question: ${questionBoard.question}`, ...board.details].slice(0, 5),
+            }
+          : board;
         const ss: SceneState = {
           scene,
           crowd,
@@ -290,8 +372,12 @@ export function WarRoom({ source }: { source?: EventSource }) {
           cssW,
           cssH,
           t,
-          board: deriveBoardContext(stateRef.current, modeLabel, sessionRef.current),
+          board: boardWithQuestion,
           ambient: pickAmbient(t, crowd, activeId),
+          selectedAgentId: selectedAgentIdRef.current,
+          hoverAgentId: hoverAgentIdRef.current,
+          panicAgentIds: new Set(questionRunningRef.current ? AGENT_ORDER : []),
+          responsibilities: AGENT_RESPONSIBILITY,
         };
         drawScene(ctx, ss);
       }
@@ -316,12 +402,172 @@ export function WarRoom({ source }: { source?: EventSource }) {
     return () => stopRef.current?.();
   }, [run]);
 
+  useEffect(() => {
+    return () => questionStopRef.current?.();
+  }, []);
+
+  const pipelineLabel = useReal ? (LIVE_ENV ? 'Live Cerebras' : 'Pipeline mock') : 'Mock cascade';
+
+  const cameraBounds = useCallback(
+    () => ({
+      width: sceneRef.current?.width ?? canvasRef.current?.clientWidth ?? 1,
+      height: sceneRef.current?.height ?? canvasRef.current?.clientHeight ?? 1,
+      viewW: canvasRef.current?.clientWidth ?? 1,
+      viewH: canvasRef.current?.clientHeight ?? 1,
+    }),
+    [],
+  );
+
+  const worldFromEvent = useCallback((event: ReactPointerEvent<HTMLCanvasElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return screenToWorld(camRef.current, event.clientX - rect.left, event.clientY - rect.top, rect.width, rect.height);
+  }, []);
+
+  const selectAt = useCallback((point: { x: number; y: number }) => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+    setSelectedAgentId(hitTestDesk(scene, point.x, point.y)?.id ?? null);
+  }, []);
+
+  const onPointerDown = useCallback((event: ReactPointerEvent<HTMLCanvasElement>) => {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    draggingRef.current = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
+  }, []);
+
+  const onPointerMove = useCallback(
+    (event: ReactPointerEvent<HTMLCanvasElement>) => {
+      const scene = sceneRef.current;
+      if (!scene) return;
+      if (draggingRef.current?.id === event.pointerId) {
+        const dx = event.clientX - draggingRef.current.x;
+        const dy = event.clientY - draggingRef.current.y;
+        const moved = draggingRef.current.moved || Math.hypot(dx, dy) > 4;
+        draggingRef.current = { id: event.pointerId, x: event.clientX, y: event.clientY, moved };
+        camRef.current = panCamera(camRef.current, dx, dy, cameraBounds());
+        manualCameraUntilRef.current = performance.now() + 3500;
+        return;
+      }
+      const world = worldFromEvent(event);
+      setHoverAgentId(hitTestDesk(scene, world.x, world.y)?.id ?? null);
+    },
+    [cameraBounds, worldFromEvent],
+  );
+
+  const onPointerUp = useCallback(
+    (event: ReactPointerEvent<HTMLCanvasElement>) => {
+      const drag = draggingRef.current?.id === event.pointerId ? draggingRef.current : null;
+      draggingRef.current = null;
+      if (!drag || drag.moved) return;
+      selectAt(worldFromEvent(event));
+    },
+    [selectAt, worldFromEvent],
+  );
+
+  const onWheel = useCallback(
+    (event: WheelEvent<HTMLCanvasElement>) => {
+      event.preventDefault();
+      const rect = event.currentTarget.getBoundingClientRect();
+      const factor = event.deltaY < 0 ? 1.12 : 0.88;
+      camRef.current = zoomAt(camRef.current, event.clientX - rect.left, event.clientY - rect.top, factor, cameraBounds());
+      manualCameraUntilRef.current = performance.now() + 3500;
+    },
+    [cameraBounds],
+  );
+
+  const onDoubleClick = useCallback(
+    (event: ReactPointerEvent<HTMLCanvasElement>) => {
+      const scene = sceneRef.current;
+      if (!scene) return;
+      const point = worldFromEvent(event);
+      const hit = hitTestDesk(scene, point.x, point.y);
+      if (!hit) return;
+      setSelectedAgentId(hit.id);
+      camRef.current = focusCamera(hit.home, 1.65, cameraBounds());
+      manualCameraUntilRef.current = performance.now() + 3500;
+    },
+    [cameraBounds, worldFromEvent],
+  );
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const scene = sceneRef.current;
+      if (event.key === 'Escape') setSelectedAgentId(null);
+      if (event.key === '+' || event.key === '=') camRef.current = zoomAt(camRef.current, window.innerWidth / 2, window.innerHeight / 2, 1.12, cameraBounds());
+      if (event.key === '-') camRef.current = zoomAt(camRef.current, window.innerWidth / 2, window.innerHeight / 2, 0.88, cameraBounds());
+      if (event.key === 'ArrowLeft') camRef.current = panCamera(camRef.current, 48, 0, cameraBounds());
+      if (event.key === 'ArrowRight') camRef.current = panCamera(camRef.current, -48, 0, cameraBounds());
+      if (event.key === 'ArrowUp') camRef.current = panCamera(camRef.current, 0, 48, cameraBounds());
+      if (event.key === 'ArrowDown') camRef.current = panCamera(camRef.current, 0, -48, cameraBounds());
+      if (event.key === '0') {
+        camRef.current = focusCamera({ x: (scene?.width ?? 1) / 2, y: (scene?.height ?? 1) / 2 }, 1, cameraBounds());
+        manualCameraUntilRef.current = 0;
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [cameraBounds]);
+
+  const submitQuestion = useCallback(
+    (event: FormEvent) => {
+      event.preventDefault();
+      const question = questionText.trim();
+      if (!question || questionRunning) return;
+      questionStopRef.current?.();
+      questionBoardRef.current = { question, running: true };
+      ambientRef.current = { at: -1e9, picks: [] };
+      setQuestionError('');
+      setQuestionRunning(true);
+      setQuestionText('');
+      setSelectedAgentId(null);
+      questionStopRef.current = startQuestionRun({
+        question,
+        session: sessionRef.current,
+        dossiers,
+        onEvent,
+        onComplete: (turn) => {
+          questionBoardRef.current = { question, answer: turn.answer, running: false };
+          ambientRef.current = { at: -1e9, picks: [] };
+          setHistory((items) => [turn, ...items].slice(0, 5));
+          setQuestionRunning(false);
+          setRenderVersion((value) => value + 1);
+        },
+        onError: (message) => {
+          questionBoardRef.current = { question, answer: message, running: false };
+          ambientRef.current = { at: -1e9, picks: [] };
+          setQuestionError(message);
+          setQuestionRunning(false);
+        },
+      });
+    },
+    [dossiers, onEvent, questionRunning, questionText],
+  );
+
+  const openReport = useCallback(async () => {
+    if (reportBusy) return;
+    setReportOpen(true);
+    setReportBusy(true);
+    setReportError('');
+    try {
+      const generated = await generateReportPreview({
+        title: deriveBoardContext(stateRef.current, pipelineLabel, sessionRef.current).title,
+        mode: pipelineLabel,
+        latest,
+        dossiers,
+        history,
+        session: sessionRef.current,
+      });
+      setReport(generated);
+    } catch (err) {
+      setReportError(err instanceof Error ? err.message : 'Report generation failed');
+    } finally {
+      setReportBusy(false);
+    }
+  }, [dossiers, history, latest, pipelineLabel, reportBusy]);
+
   const toggleRecord = useCallback(() => {
     if (recorder.recording) recorder.stop();
     else if (canvasRef.current) recorder.start(canvasRef.current);
   }, [recorder]);
-
-  const pipelineLabel = useReal ? (LIVE_ENV ? 'Live Cerebras' : 'Pipeline mock') : 'Mock cascade';
 
   return (
     <div className="warroom-root">
@@ -350,9 +596,112 @@ export function WarRoom({ source }: { source?: EventSource }) {
         <button className="warroom-replay" onClick={run}>Replay</button>
       </div>
 
-      <div className="warroom-stage">
-        <canvas ref={canvasRef} className="warroom-canvas" />
+      <div className="warroom-console">
+        <div className="warroom-stage">
+          <canvas
+            ref={canvasRef}
+            className="warroom-canvas"
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerUp}
+            onWheel={onWheel}
+            onDoubleClick={onDoubleClick}
+          />
+        </div>
+
+        <aside className="warroom-inspector" aria-label="War Room agent inspector">
+          <div className="warroom-agent-list">
+            {dossiers.map((dossier) => (
+              <button
+                key={dossier.agentId}
+                className={`warroom-agent-tab ${selectedAgentId === dossier.agentId ? 'selected' : ''}`}
+                onClick={() => setSelectedAgentId(dossier.agentId)}
+                title={dossier.responsibility}
+              >
+                <span>{dossier.label}</span>
+                <small>{dossier.status}</small>
+              </button>
+            ))}
+          </div>
+          <AgentInspector dossier={selectedDossier} dossiers={dossiers} />
+        </aside>
       </div>
+
+      <form className="warroom-command" onSubmit={submitQuestion}>
+        <input
+          value={questionText}
+          onChange={(event) => setQuestionText(event.target.value)}
+          placeholder="Ask the swarm about this scenario"
+          disabled={questionRunning}
+        />
+        <button type="submit" disabled={questionRunning || !questionText.trim()}>
+          {questionRunning ? 'Thinking' : 'Ask swarm'}
+        </button>
+        <button type="button" onClick={openReport} disabled={reportBusy}>
+          {reportBusy ? 'Writing report' : 'Export report'}
+        </button>
+        {questionError && <span className="warroom-error">{questionError}</span>}
+        {history[0] && <span className="warroom-last-answer">{history[0].question}</span>}
+      </form>
+
+      {reportOpen && (
+        <div className="warroom-modal" role="dialog" aria-modal="true" aria-label="War Room report preview">
+          <div className="warroom-modal-panel">
+            <div className="warroom-modal-head">
+              <strong>Report preview</strong>
+              <button type="button" onClick={() => setReportOpen(false)}>Close</button>
+            </div>
+            {reportBusy && <p>Gemma 4 is writing the report through Cerebras.</p>}
+            {reportError && <p className="warroom-error">{reportError}</p>}
+            {report && (
+              <>
+                <iframe title="War Room report preview" srcDoc={report.html} />
+                <button
+                  type="button"
+                  onClick={() => downloadReportHtml(report.html, deriveBoardContext(stateRef.current, pipelineLabel, sessionRef.current).title)}
+                >
+                  Download HTML
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AgentInspector({ dossier, dossiers }: { dossier: AgentDossier | null; dossiers: AgentDossier[] }) {
+  if (!dossier) {
+    const complete = dossiers.filter((item) => item.status === 'complete').length;
+    return (
+      <div className="warroom-detail">
+        <h2>Swarm Overview</h2>
+        <p>{complete} of {dossiers.length} agents have completed their latest pass.</p>
+        <ul>
+          {dossiers.map((item) => (
+            <li key={item.agentId}><strong>{item.label}:</strong> {item.conclusion}</li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  return (
+    <div className="warroom-detail">
+      <h2>{dossier.label}</h2>
+      <p className="warroom-responsibility">{dossier.responsibility}</p>
+      <h3>Conclusion</h3>
+      <p>{dossier.conclusion}</p>
+      <h3>Evidence</h3>
+      <ul>{dossier.evidence.length ? dossier.evidence.map((item) => <li key={item}>{item}</li>) : <li>No evidence surfaced yet.</li>}</ul>
+      <h3>Critique and judgment</h3>
+      <p>{dossier.critique}</p>
+      <h3>Statistics</h3>
+      <ul>{dossier.stats.length ? dossier.stats.map((item) => <li key={item}>{item}</li>) : <li>No timing reported yet.</li>}</ul>
+      <h3>Transcript</h3>
+      <ul>{dossier.transcript.length ? dossier.transcript.map((item) => <li key={item}>{item}</li>) : <li>Waiting for streamed tokens.</li>}</ul>
     </div>
   );
 }

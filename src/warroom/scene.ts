@@ -114,6 +114,16 @@ export function isBlocked(scene: SceneLayout, x: number, y: number): boolean {
   return false;
 }
 
+export function pointInRect(r: Rect, x: number, y: number): boolean {
+  return inside(r, x, y);
+}
+
+export function hitTestDesk(scene: SceneLayout, x: number, y: number): DeskZone | null {
+  const desk = scene.zones.find((zone) => inside(inflated(zone.desk, 18), x, y));
+  if (desk) return desk;
+  return scene.zones.find((zone) => Math.hypot(zone.home.x - x, zone.home.y - y) <= zone.radius * 0.8) ?? null;
+}
+
 // --- paint -------------------------------------------------------------------
 
 function fillRectS(ctx: CanvasRenderingContext2D, w2s: W2S, zoom: number, r: Rect, color: string): void {

@@ -7,6 +7,7 @@
  * pushes in on it; an activation arrow links it to its upstream group (the reasoning topology).
  */
 import type { AgentId } from '../core/contract';
+import type { CameraView } from './camera';
 import { drawOffice, type BoardContext, type SceneLayout, type W2S, type Vec } from './scene';
 import type { Crowd, GroupStatus } from './crowd';
 import { blockIndex, frameRect } from './sheet';
@@ -24,12 +25,6 @@ const UPSTREAM: Record<AgentId, AgentId | null> = {
   risk: 'visualizer',
   explainer: 'visualizer',
 };
-
-export interface CameraView {
-  x: number;
-  y: number;
-  zoom: number;
-}
 
 /** A rotating idle-worker murmur: which (group, worker) and what it says. */
 export interface AmbientBubble {
@@ -52,6 +47,10 @@ export interface SceneState {
   board: BoardContext;
   backdrop: HTMLImageElement | null;
   ambient: AmbientBubble[];
+  selectedAgentId: AgentId | null;
+  hoverAgentId: AgentId | null;
+  panicAgentIds: Set<AgentId>;
+  responsibilities: Record<AgentId, string>;
 }
 
 function makeW2S(cam: CameraView, cssW: number, cssH: number): W2S {
@@ -69,9 +68,59 @@ export function drawScene(ctx: CanvasRenderingContext2D, s: SceneState): void {
 
   drawOffice(ctx, s.scene, w2s, s.cam.zoom, s.cssW, s.cssH, s.board, s.backdrop);
 
+  drawDeskHighlights(ctx, s, w2s);
+  drawHoverLabel(ctx, s, w2s);
   drawArrow(ctx, s, w2s);
   drawSprites(ctx, s, w2s);
   drawBubbles(ctx, s, w2s);
+}
+
+function drawDeskHighlights(ctx: CanvasRenderingContext2D, s: SceneState, w2s: W2S): void {
+  for (const zone of s.scene.zones) {
+    const selected = s.selectedAgentId === zone.id;
+    const hovered = s.hoverAgentId === zone.id;
+    const panic = s.panicAgentIds.has(zone.id);
+    if (!selected && !hovered && !panic) continue;
+    const p = w2s(zone.desk.x, zone.desk.y);
+    ctx.save();
+    ctx.strokeStyle = zone.color;
+    ctx.globalAlpha = selected ? 0.95 : panic ? 0.62 : 0.5;
+    ctx.lineWidth = selected ? 3 : 2;
+    ctx.setLineDash(panic ? [5, 4] : []);
+    ctx.strokeRect(
+      Math.round(p.x - 8 * s.cam.zoom),
+      Math.round(p.y - 8 * s.cam.zoom),
+      Math.round((zone.desk.w + 16) * s.cam.zoom),
+      Math.round((zone.desk.h + 16) * s.cam.zoom),
+    );
+    ctx.restore();
+  }
+}
+
+function drawHoverLabel(ctx: CanvasRenderingContext2D, s: SceneState, w2s: W2S): void {
+  if (!s.hoverAgentId) return;
+  const zone = s.scene.zones.find((item) => item.id === s.hoverAgentId);
+  if (!zone) return;
+  const p = w2s(zone.home.x, zone.desk.y - 18);
+  const text = s.responsibilities[zone.id];
+  ctx.save();
+  ctx.font = "600 12px 'Geist Variable', ui-sans-serif, system-ui, sans-serif";
+  const maxW = 280;
+  const w = Math.min(maxW, Math.max(180, ctx.measureText(text).width + 24));
+  const x = Math.max(8, Math.min(s.cssW - w - 8, p.x - w / 2));
+  const y = Math.max(8, p.y - 42);
+  ctx.fillStyle = 'rgba(255,255,255,0.96)';
+  ctx.strokeStyle = 'rgba(20,24,33,0.16)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, 34, 8);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = zone.color;
+  ctx.fillRect(x, y, 4, 34);
+  ctx.fillStyle = '#1d2330';
+  ctx.fillText(text.length > 74 ? `${text.slice(0, 71)}...` : text, x + 12, y + 10);
+  ctx.restore();
 }
 
 function drawArrow(ctx: CanvasRenderingContext2D, s: SceneState, w2s: W2S): void {
