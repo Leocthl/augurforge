@@ -1,16 +1,14 @@
 /**
- * WarRoom.tsx — the Gemma swarm as a CROWDED, ANIMATED canvas-2D "situation room". [OWNER: B / warroom]
+ * WarRoom.tsx — the Gemma swarm as a pixel-sprite "situation room". [OWNER: B / warroom]
  *
- * A single <canvas> + requestAnimationFrame loop (simfrancisco-style) renders an office war room:
- * six agent GROUPS, each a wandering CLUSTER of stick figures around a central situation board.
- * Idle groups drift slowly + dim; the agent currently thinking brightens, glows, moves energetically
- * and shows a streamed thought bubble. It reuses the explainer's event sources + reducer (DRY) — the
- * same AgentEvent cascade the thinking-graph consumes. Mock-first; real-pipeline toggle.
- *
- * A DOM HUD floats above the canvas (badge, TTFT, tokens/sec, Mock/Real toggle, Replay, Record).
+ * A recreation of simfrancisco's canvas swarm, re-skinned as an office: six agent GROUPS of
+ * Gemma-authored pixel workers (baked from characters.json via bakeAtlas) wander their desks around
+ * a central situation board. The real AgentEvent cascade (reused explainer plumbing) drives the
+ * scene — the active group lights up, the camera pushes in, and its streamed tokens fill a thought
+ * bubble. It is an aesthetic MULTI-AGENT VIEW of the same process the main app runs. Mock-first.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AgentEvent, AgentId, OnEvent } from '../core/contract';
+import type { AgentEvent, OnEvent } from '../core/contract';
 import {
   applyEvent,
   initReasoning,
@@ -21,17 +19,16 @@ import {
   type ReasoningState,
 } from '../explainer';
 import { ROLE_COLOR } from '../explainer/types';
-import {
-  AGENT_ORDER,
-  buildCrowd,
-  stepGroup,
-  totalFigures,
-  type CrowdLayout,
-  type GroupStatus,
-} from './crowd';
-import { drawScene, type Scene } from './draw';
+import { AGENT_ORDER } from './agents';
+import { buildScene, type SceneLayout } from './scene';
+import { buildCrowd, stepWorker, totalFigures, type Crowd, type GroupStatus } from './crowd';
+import { loadGroupTraits } from './traits';
+import { bakeAtlas } from './bakeAtlas';
+import { ambientFor } from './bubbles';
+import { drawScene, type AmbientBubble, type CameraView, type SceneState } from './draw';
 
 const SCENARIO_TITLE = 'Portfolio ruin risk — Monte Carlo (GBM)';
+const ROLE = ROLE_COLOR as Record<string, string>;
 
 /** Derive each group's live status from the reasoning reducer state. */
 function deriveStatuses(state: ReasoningState): Record<string, GroupStatus> {
@@ -39,10 +36,12 @@ function deriveStatuses(state: ReasoningState): Record<string, GroupStatus> {
   for (const id of AGENT_ORDER) {
     const node = state.data.nodes.find((n) => n.id === id);
     const caption = state.captions[id] ?? '';
-    const started = !!node || id in state.captions;
-    const thinking = node?.pulse === true;
-    const done = !!node && node.pulse === false;
-    out[id] = { started, thinking, done, caption };
+    out[id] = {
+      started: !!node || id in state.captions,
+      thinking: node?.pulse === true,
+      done: !!node && node.pulse === false,
+      caption,
+    };
   }
   return out;
 }
@@ -59,6 +58,18 @@ function deriveMetric(state: ReasoningState): { label: string; value: string } |
   return null;
 }
 
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
+function clampCam(x: number, y: number, zoom: number, w: number, h: number): CameraView {
+  const hw = w / (2 * zoom);
+  const hh = h / (2 * zoom);
+  return {
+    zoom,
+    x: hw * 2 <= w ? Math.max(hw, Math.min(w - hw, x)) : w / 2,
+    y: hh * 2 <= h ? Math.max(hh, Math.min(h - hh, y)) : h / 2,
+  };
+}
+
 export function WarRoom({ source }: { source?: EventSource }) {
   const [latest, setLatest] = useState<{ ttftMs?: number; tokensPerSec?: number }>({});
   const [useReal, setUseReal] = useState(false);
@@ -67,7 +78,11 @@ export function WarRoom({ source }: { source?: EventSource }) {
   const stopRef = useRef<null | (() => void)>(null);
   const stateRef = useRef<ReasoningState>(initReasoning(performance.now()));
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const layoutRef = useRef<CrowdLayout | null>(null);
+  const sceneRef = useRef<SceneLayout | null>(null);
+  const crowdRef = useRef<Crowd | null>(null);
+  const atlasRef = useRef<HTMLCanvasElement | null>(null);
+  const camRef = useRef<CameraView>({ x: 0, y: 0, zoom: 1 });
+  const ambientRef = useRef<{ at: number; picks: AmbientBubble[] }>({ at: -1e9, picks: [] });
   const rafRef = useRef<number>(0);
   const recorder = useClipRecorder(30);
 
@@ -84,7 +99,12 @@ export function WarRoom({ source }: { source?: EventSource }) {
     stopRef.current = src.start(onEvent);
   }, [source, useReal, onEvent]);
 
-  // --- canvas: DPR-aware sizing, resize handling, rAF loop --------------------
+  // Bake the Gemma-authored sprite atlas once on mount.
+  useEffect(() => {
+    atlasRef.current = bakeAtlas(loadGroupTraits());
+  }, []);
+
+  // Canvas: DPR-aware sizing + the simfrancisco-style rAF loop.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -106,9 +126,11 @@ export function WarRoom({ source }: { source?: EventSource }) {
       canvas.style.width = `${cssW}px`;
       canvas.style.height = `${cssH}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      // Rebuild crowd deterministically for the new size (positions reseed identically).
-      layoutRef.current = buildCrowd(cssW, cssH, ROLE_COLOR as Record<AgentId, string>);
-      setFigureCount(totalFigures(layoutRef.current));
+      const scene = buildScene(cssW, cssH, ROLE);
+      sceneRef.current = scene;
+      crowdRef.current = buildCrowd(scene);
+      camRef.current = { x: cssW / 2, y: cssH / 2, zoom: 1 };
+      setFigureCount(totalFigures(crowdRef.current));
     };
 
     resize();
@@ -117,26 +139,72 @@ export function WarRoom({ source }: { source?: EventSource }) {
 
     const start = performance.now();
     let prev = start;
+
+    const pickAmbient = (t: number, crowd: Crowd, activeId: string | null): AmbientBubble[] => {
+      const cur = ambientRef.current;
+      if (t * 1000 - cur.at < 2600 && cur.picks.length) return cur.picks;
+      const cycle = Math.floor((t * 1000) / 2600);
+      const picks: AmbientBubble[] = [];
+      crowd.groups.forEach((g, gi) => {
+        if (picks.length >= 5 || g.id === activeId || g.workers.length === 0) return;
+        const wi = (cycle * 3 + gi * 7) % g.workers.length;
+        picks.push({ gi, wi, text: ambientFor(gi * 13 + wi + cycle) });
+      });
+      ambientRef.current = { at: t * 1000, picks };
+      return picks;
+    };
+
+    let frameErrLogged = false;
     const frame = (now: number) => {
+      try {
       const dt = Math.min(0.05, (now - prev) / 1000);
       prev = now;
       const t = (now - start) / 1000;
-      const layout = layoutRef.current;
-      if (layout) {
+      const scene = sceneRef.current;
+      const crowd = crowdRef.current;
+      if (scene && crowd) {
         const statuses = deriveStatuses(stateRef.current);
-        for (const group of layout.groups) {
-          stepGroup(group, statuses[group.id], dt);
+        const activeId = stateRef.current.active;
+
+        for (const g of crowd.groups) {
+          const energetic = statuses[g.id]?.thinking === true;
+          for (const w of g.workers) stepWorker(w, scene, energetic, dt);
         }
-        const scene: Scene = {
-          layout,
+
+        const active = activeId ? crowd.groups.find((g) => g.id === activeId) : undefined;
+        const target = active
+          ? clampCam(active.home.x, active.home.y, 1.5, cssW, cssH)
+          : { x: cssW / 2, y: cssH / 2, zoom: 1 };
+        const k = 1 - Math.pow(0.0001, dt);
+        const cam = camRef.current;
+        camRef.current = {
+          x: lerp(cam.x, target.x, k),
+          y: lerp(cam.y, target.y, k),
+          zoom: lerp(cam.zoom, target.zoom, k),
+        };
+
+        const ss: SceneState = {
+          scene,
+          crowd,
+          atlas: atlasRef.current,
           statuses,
-          activeId: stateRef.current.active,
+          captions: stateRef.current.captions,
+          activeId,
+          cam: camRef.current,
+          cssW,
+          cssH,
+          t,
           scenarioTitle: SCENARIO_TITLE,
           latestMetric: deriveMetric(stateRef.current),
-          t,
-          cssWidth: cssW,
+          ambient: pickAmbient(t, crowd, activeId),
         };
-        drawScene(ctx, scene);
+        drawScene(ctx, ss);
+      }
+      } catch (err) {
+        if (!frameErrLogged) {
+          frameErrLogged = true;
+          console.error('[warroom] render frame failed:', err);
+        }
       }
       rafRef.current = requestAnimationFrame(frame);
     };
@@ -148,31 +216,29 @@ export function WarRoom({ source }: { source?: EventSource }) {
     };
   }, []);
 
-  // --- event source lifecycle -------------------------------------------------
   useEffect(() => {
     run();
     return () => stopRef.current?.();
   }, [run]);
 
   const toggleRecord = useCallback(() => {
-    if (recorder.recording) {
-      recorder.stop();
-    } else if (canvasRef.current) {
-      recorder.start(canvasRef.current);
-    }
+    if (recorder.recording) recorder.stop();
+    else if (canvasRef.current) recorder.start(canvasRef.current);
   }, [recorder]);
 
   return (
     <div className="warroom-root">
       <div className="warroom-hud">
-        <span className="warroom-badge">Gemma 4 · Cerebras · Situation Room</span>
-        <span className="warroom-stat">
-          TTFT {latest.ttftMs != null ? `${latest.ttftMs} ms` : '—'}
-        </span>
-        <span className="warroom-stat">
-          {latest.tokensPerSec != null ? `${Math.round(latest.tokensPerSec)} tok/s` : ''}
-        </span>
-        <span className="warroom-stat warroom-stat-dim">{figureCount} figures</span>
+        <a className="warroom-back" href={import.meta.env.BASE_URL} aria-label="Back to the main AugurForge app">
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M10 3 L5 8 L10 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          AugurForge
+        </a>
+        <span className="warroom-badge"><span className="warroom-dot" />Gemma 4 · Cerebras · Situation Room</span>
+        <span className="warroom-stat">TTFT {latest.ttftMs != null ? `${latest.ttftMs} ms` : '—'}</span>
+        <span className="warroom-stat">{latest.tokensPerSec != null ? `${Math.round(latest.tokensPerSec)} tok/s` : ''}</span>
+        <span className="warroom-stat warroom-stat-dim">{figureCount} workers</span>
         <span className="warroom-spacer" />
         {!source && (
           <button className="warroom-toggle" onClick={() => setUseReal((v) => !v)}>
@@ -180,16 +246,11 @@ export function WarRoom({ source }: { source?: EventSource }) {
           </button>
         )}
         {recorder.supported && (
-          <button
-            className={`warroom-toggle ${recorder.recording ? 'recording' : ''}`}
-            onClick={toggleRecord}
-          >
+          <button className={`warroom-toggle ${recorder.recording ? 'recording' : ''}`} onClick={toggleRecord}>
             {recorder.recording ? 'Stop ●' : 'Record'}
           </button>
         )}
-        <button className="warroom-replay" onClick={run}>
-          Replay
-        </button>
+        <button className="warroom-replay" onClick={run}>Replay</button>
       </div>
 
       <div className="warroom-stage">

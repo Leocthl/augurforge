@@ -1,83 +1,101 @@
-/* warroom.css — canvas situation room: a DOM HUD floating over a full-bleed <canvas>. [OWNER: B / warroom] */
+/* warroom.css — light, on-brand HUD chrome for the situation room. [OWNER: B / warroom] */
+@import '../index.css';
+
 .warroom-root {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  font-family: "Inter", system-ui, sans-serif;
-  color: #e6edf6;
-  background: #06090f;
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper, #f4f5f7);
+  font-family: var(--font-sans, 'Geist Variable', system-ui, sans-serif);
+  color: var(--ink, #1d2330);
 }
 
-/* The canvas fills the whole stage; the crowd + backdrop are painted in JS. */
+.warroom-hud {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--line, rgba(20, 24, 33, 0.1));
+  background: var(--panel, rgba(255, 255, 255, 0.72));
+  backdrop-filter: blur(12px) saturate(1.1);
+  flex: 0 0 auto;
+}
+
+.warroom-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  color: var(--ink, #1d2330);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 6px 12px 6px 9px;
+  border: 1px solid var(--line, rgba(20, 24, 33, 0.14));
+  border-radius: var(--r, 8px);
+  background: rgba(255, 255, 255, 0.6);
+  transition: border-color 0.16s, color 0.16s;
+}
+.warroom-back:hover {
+  border-color: var(--blue, #3b6fb0);
+  color: var(--blue, #3b6fb0);
+}
+.warroom-back svg { width: 14px; height: 14px; }
+
+.warroom-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--ink, #1d2330);
+}
+.warroom-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--blue, #3b6fb0);
+  box-shadow: 0 0 0 3px rgba(59, 111, 176, 0.16);
+}
+
+.warroom-stat {
+  font-size: 12px;
+  color: var(--muted, #5b6472);
+  font-variant-numeric: tabular-nums;
+}
+.warroom-stat-dim { opacity: 0.7; }
+.warroom-spacer { flex: 1 1 auto; }
+
+.warroom-toggle,
+.warroom-replay {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: var(--r, 8px);
+  border: 1px solid var(--line, rgba(20, 24, 33, 0.14));
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ink, #1d2330);
+  cursor: pointer;
+  transition: border-color 0.16s, color 0.16s;
+}
+.warroom-toggle:hover,
+.warroom-replay:hover {
+  border-color: var(--blue, #3b6fb0);
+  color: var(--blue, #3b6fb0);
+}
+.warroom-toggle.recording {
+  color: #c0352f;
+  border-color: #c0352f;
+}
+
 .warroom-stage {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 .warroom-canvas {
   display: block;
   width: 100%;
   height: 100%;
-}
-
-/* HUD floats over the canvas (does not consume layout from the stage). */
-.warroom-hud {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 12px 22px;
-  border-bottom: 1px solid rgba(120, 150, 190, 0.18);
-  background: linear-gradient(180deg, rgba(11, 19, 34, 0.82), rgba(11, 19, 34, 0.25));
-  backdrop-filter: blur(8px);
-  pointer-events: none; /* let the canvas breathe; re-enable on interactive children */
-}
-.warroom-hud > * {
-  pointer-events: auto;
-}
-
-.warroom-badge {
-  font-size: 12px;
-  font-weight: 700;
-  color: #04121f;
-  background: linear-gradient(135deg, #38bdf8, #6366f1);
-  padding: 4px 12px;
-  border-radius: 999px;
-}
-.warroom-stat {
-  font-size: 12px;
-  color: #8aa0bd;
-  font-variant-numeric: tabular-nums;
-}
-.warroom-stat-dim {
-  color: #5c6f8a;
-}
-.warroom-spacer {
-  flex: 1;
-  pointer-events: none;
-}
-.warroom-toggle,
-.warroom-replay {
-  border: 1px solid #2b4a6f;
-  background: rgba(11, 19, 34, 0.85);
-  color: #e6edf6;
-  border-radius: 8px;
-  padding: 6px 14px;
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.warroom-toggle:hover,
-.warroom-replay:hover {
-  border-color: #38bdf8;
-}
-.warroom-toggle.recording {
-  border-color: #fb7185;
-  color: #fb7185;
 }

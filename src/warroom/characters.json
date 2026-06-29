@@ -1,0 +1,139 @@
+{
+    "generatedBy":  "gemma-4-31b",
+    "generatedAt":  "2026-06-29",
+    "note":  "Character design traits authored by Gemma 4 on Cerebras; baked into a sprite atlas at load. See bakeAtlas.ts.",
+    "groups":  [
+                   {
+                       "agentId":  "orchestrator",
+                       "title":  "Routing Desk",
+                       "concept":  "Disciplined dispatchers in steel blue",
+                       "build":  "avg",
+                       "headgear":  "headset",
+                       "palette":  {
+                                       "skin":  [
+                                                    "#f5d1b0",
+                                                    "#c68642",
+                                                    "#8d5524"
+                                                ],
+                                       "hair":  [
+                                                    "#4a3728",
+                                                    "#7b5e4f",
+                                                    "#a68b7c"
+                                                ],
+                                       "top":  "#5a7d9a",
+                                       "bottom":  "#3c3c3c",
+                                       "accent":  "#d1d1d1"
+                                   }
+                   },
+                   {
+                       "agentId":  "modeler",
+                       "title":  "Quant Desk",
+                       "concept":  "Focused analysts in slate teal",
+                       "build":  "slim",
+                       "headgear":  "none",
+                       "palette":  {
+                                       "skin":  [
+                                                    "#ffdbac",
+                                                    "#e0ac69",
+                                                    "#8d5524"
+                                                ],
+                                       "hair":  [
+                                                    "#2d2926",
+                                                    "#5c4033",
+                                                    "#b8a99a"
+                                                ],
+                                       "top":  "#4a6d75",
+                                       "bottom":  "#2f2f2f",
+                                       "accent":  "#89a8ad"
+                                   }
+                   },
+                   {
+                       "agentId":  "visualizer",
+                       "title":  "Design Desk",
+                       "concept":  "Creative architects in muted ochre",
+                       "build":  "slim",
+                       "headgear":  "beanie",
+                       "palette":  {
+                                       "skin":  [
+                                                    "#f1c27d",
+                                                    "#c68642",
+                                                    "#5c3836"
+                                                ],
+                                       "hair":  [
+                                                    "#634e34",
+                                                    "#a0522d",
+                                                    "#d2b48c"
+                                                ],
+                                       "top":  "#b08d57",
+                                       "bottom":  "#403d39",
+                                       "accent":  "#8b7355"
+                                   }
+                   },
+                   {
+                       "agentId":  "sensitivity",
+                       "title":  "Analysis Desk",
+                       "concept":  "Precise testers in muted violet",
+                       "build":  "avg",
+                       "headgear":  "visor",
+                       "palette":  {
+                                       "skin":  [
+                                                    "#fce2c4",
+                                                    "#d2b48c",
+                                                    "#8d5524"
+                                                ],
+                                       "hair":  [
+                                                    "#3a3a3a",
+                                                    "#704214",
+                                                    "#c0c0c0"
+                                                ],
+                                       "top":  "#7a6f8a",
+                                       "bottom":  "#353535",
+                                       "accent":  "#5e5469"
+                                   }
+                   },
+                   {
+                       "agentId":  "risk",
+                       "title":  "Audit Desk",
+                       "concept":  "Stern auditors in clay red",
+                       "build":  "broad",
+                       "headgear":  "none",
+                       "palette":  {
+                                       "skin":  [
+                                                    "#f5d1b0",
+                                                    "#b08d57",
+                                                    "#5c3836"
+                                                ],
+                                       "hair":  [
+                                                    "#1a1a1a",
+                                                    "#4b3621",
+                                                    "#8b7355"
+                                                ],
+                                       "top":  "#965a5a",
+                                       "bottom":  "#2b2b2b",
+                                       "accent":  "#734545"
+                                   }
+                   },
+                   {
+                       "agentId":  "explainer",
+                       "title":  "Comms Desk",
+                       "concept":  "Approachable writers in muted green",
+                       "build":  "avg",
+                       "headgear":  "cap",
+                       "palette":  {
+                                       "skin":  [
+                                                    "#ffdbac",
+                                                    "#c68642",
+                                                    "#8d5524"
+                                                ],
+                                       "hair":  [
+                                                    "#2c1e1e",
+                                                    "#5e4b3f",
+                                                    "#a68b7c"
+                                                ],
+                                       "top":  "#6b8e6b",
+                                       "bottom":  "#3a3a3a",
+                                       "accent":  "#4d664d"
+                                   }
+                   }
+               ]
+}
