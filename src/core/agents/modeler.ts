@@ -38,6 +38,33 @@ const SLIDER_SCHEMA = objectSchema(
   ['id', 'label', 'min', 'max', 'step', 'value', 'unit'],
 );
 
+const PARAMS_SCHEMA = objectSchema(
+  {
+    sigma: { type: 'number' },
+    drift: { type: 'number' },
+    horizon: { type: 'number' },
+    spot: { type: 'number' },
+    strike: { type: 'number' },
+    volatility: { type: 'number' },
+    rate: { type: 'number' },
+    maturity: { type: 'number' },
+  },
+  [],
+);
+
+const MAPPING_SCHEMA = objectSchema(
+  {
+    source: { type: 'string' },
+    generated: { type: 'string' },
+    model: { type: 'string' },
+    vision: { type: 'string' },
+    data: { type: 'string' },
+    assumptions: { type: 'string' },
+    parameters: { type: 'string' },
+  },
+  [],
+);
+
 const GENERATED_SPEC_SCHEMA = objectSchema(
   {
     id: { type: 'string' },
@@ -52,7 +79,7 @@ const GENERATED_SPEC_SCHEMA = objectSchema(
       },
       ['entry', 'expert'],
     ),
-    mapping: { type: 'object', additionalProperties: { type: 'string' } },
+    mapping: MAPPING_SCHEMA,
   },
   ['id', 'modelKind', 'title', 'subtitle', 'sliders', 'explainer', 'mapping'],
 );
@@ -62,9 +89,9 @@ const RESPONSE_FORMAT = jsonSchema(
   objectSchema(
     {
       templateId: stringEnum(['monte-carlo', GENERATED_BLACK_SCHOLES_ID]),
-      params: { type: 'object', additionalProperties: { type: 'number' } },
+      params: PARAMS_SCHEMA,
       sliders: { type: 'array', items: SLIDER_SCHEMA },
-      mapping: { type: 'object', additionalProperties: { type: 'string' } },
+      mapping: MAPPING_SCHEMA,
       generatedSpec: GENERATED_SPEC_SCHEMA,
     },
     ['templateId', 'params', 'sliders', 'mapping', 'generatedSpec'],

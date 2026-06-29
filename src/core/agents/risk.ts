@@ -15,8 +15,6 @@ const RESPONSE_FORMAT = jsonSchema(
     {
       flags: {
         type: 'array',
-        minItems: 1,
-        maxItems: 3,
         items: objectSchema(
           {
             level: stringEnum(['ok', 'warning', 'danger']),

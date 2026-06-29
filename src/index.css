@@ -20,6 +20,7 @@
   --ink-faint: oklch(59% 0.014 260);
   --line: oklch(86.5% 0.009 248);
   --line-soft: oklch(90.5% 0.007 248);
+  --line-faint: oklch(93.5% 0.006 248);
 
   --graphite: oklch(18% 0.02 260);
   --graphite-2: oklch(23% 0.023 260);
@@ -50,15 +51,17 @@
 html,
 body,
 #root {
+  width: 100%;
   min-height: 100%;
   margin: 0;
+  overflow-x: hidden;
 }
 
 body {
   min-width: 320px;
   background:
     linear-gradient(180deg, oklch(100% 0 0 / 0.78), transparent 32%),
-    radial-gradient(900px 480px at 14% -12%, oklch(55% 0.14 250 / 0.08), transparent 58%),
+    radial-gradient(900px 480px at 14% -12%, oklch(55% 0.14 250 / 0.065), transparent 58%),
     linear-gradient(180deg, var(--paper), var(--paper-2));
   color: var(--ink);
   font-family: var(--font-sans);
@@ -101,14 +104,17 @@ input:disabled {
 }
 
 .app-shell {
+  width: 100%;
+  max-width: 100vw;
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 254px minmax(0, 1fr);
+  grid-template-columns: 250px minmax(0, 1fr);
   gap: 14px;
   padding: 14px;
 }
 
 .nav-rail {
+  min-width: 0;
   min-height: calc(100vh - 28px);
   position: sticky;
   top: 14px;
@@ -304,7 +310,8 @@ input:disabled {
 }
 
 .topbar {
-  min-height: 86px;
+  min-width: 0;
+  min-height: 94px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -312,20 +319,46 @@ input:disabled {
   padding: 2px 2px 0;
 }
 
+.topbar-copy {
+  min-width: 0;
+}
+
 .topbar h2 {
-  max-width: 860px;
+  max-width: min(820px, 100%);
   margin-top: 5px;
   color: var(--ink);
-  font-size: 30px;
-  line-height: 1.08;
+  font-size: 29px;
+  line-height: 1.07;
   font-weight: 560;
   text-wrap: balance;
+  overflow-wrap: break-word;
+}
+
+.proof-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 11px;
+}
+
+.proof-row span {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 9px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r);
+  background: oklch(99% 0.003 248 / 0.58);
+  color: var(--ink-soft);
+  font-size: 11.5px;
+  font-weight: 610;
 }
 
 .topbar-metrics {
   display: flex;
   gap: 8px;
   flex: none;
+  min-width: 0;
 }
 
 .topbar-metrics div,
@@ -340,8 +373,8 @@ input:disabled {
 }
 
 .topbar-metrics div {
-  min-width: 104px;
-  padding: 10px 12px;
+  min-width: 108px;
+  padding: 11px 12px;
   transition:
     border-color 180ms var(--ease-out),
     background-color 180ms var(--ease-out),
@@ -378,28 +411,34 @@ input:disabled {
 }
 
 .composer-panel {
+  min-width: 0;
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: 176px minmax(0, 1fr);
   align-items: center;
   gap: 14px;
-  padding: 12px;
+  padding: 11px;
 }
 
 .composer-copy b {
   display: block;
-  max-width: 20ch;
+  max-width: 18ch;
   margin-top: 5px;
   color: var(--ink);
-  font-size: 13px;
+  font-size: 13.5px;
   line-height: 1.25;
   font-weight: 610;
 }
 
 .uploader {
+  min-width: 0;
   display: grid;
-  grid-template-columns: auto minmax(260px, 1fr) auto minmax(0, max-content) auto auto;
+  grid-template-columns: auto minmax(260px, 1fr) minmax(112px, max-content) minmax(112px, max-content) auto;
   gap: 8px;
   align-items: center;
+}
+
+.prompt-field {
+  min-width: 0;
 }
 
 .uploader input[type="text"] {
@@ -411,6 +450,7 @@ input:disabled {
   color: var(--ink);
   padding: 9px 11px;
   font-size: 13px;
+  font-weight: 470;
   transition:
     border-color 160ms var(--ease-out),
     background-color 160ms var(--ease-out),
@@ -426,7 +466,7 @@ input:disabled {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  max-width: 170px;
+  max-width: 180px;
   overflow: hidden;
   border: 1px dashed oklch(72% 0.014 248);
   border-radius: var(--r);
@@ -451,6 +491,7 @@ input:disabled {
 }
 
 .upload-error {
+  grid-column: 2 / -1;
   color: var(--red);
   font-size: 11.5px;
   line-height: 1.2;
@@ -459,15 +500,18 @@ input:disabled {
 
 .btn {
   padding: 0 12px;
+  white-space: nowrap;
 }
 
 .btn-primary {
+  min-width: 92px;
   color: oklch(98% 0.004 248);
   border-color: var(--graphite);
   background: var(--graphite);
 }
 
 .seg {
+  min-width: 0;
   display: inline-flex;
   align-items: center;
   gap: 2px;
@@ -477,7 +521,16 @@ input:disabled {
   background: oklch(94.5% 0.006 248 / 0.74);
 }
 
+.mode-seg {
+  width: 136px;
+}
+
+.mode-seg button {
+  flex: 1;
+}
+
 .seg button {
+  min-width: 0;
   min-height: 30px;
   border: 0;
   border-radius: 6px;
@@ -503,6 +556,7 @@ input:disabled {
 
 .workbench {
   min-height: 0;
+  min-width: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 372px;
   gap: 14px;
@@ -511,6 +565,7 @@ input:disabled {
 .stage-column,
 .insight-rail {
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -519,6 +574,14 @@ input:disabled {
 .insight-rail {
   overflow: auto;
   padding-right: 2px;
+}
+
+@media (min-width: 1181px) {
+  .insight-rail {
+    position: sticky;
+    top: 14px;
+    max-height: calc(100vh - 28px);
+  }
 }
 
 .parameter-strip {
@@ -763,13 +826,13 @@ input:disabled {
 
 .metrics {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
   gap: 8px;
 }
 
 .metric {
-  padding: 10px;
-  border: 1px solid var(--line-soft);
+  padding: 10px 10px 9px;
+  border: 1px solid var(--line-faint);
   border-radius: var(--r);
   background: oklch(96.5% 0.005 248 / 0.72);
 }
@@ -782,7 +845,7 @@ input:disabled {
 .metric .value {
   margin-top: 4px;
   color: var(--ink);
-  font-size: 19px;
+  font-size: 18px;
   font-weight: 690;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
@@ -798,7 +861,7 @@ input:disabled {
 .hud-stat {
   min-width: 92px;
   padding: 9px 10px;
-  border: 1px solid var(--line-soft);
+  border: 1px solid var(--line-faint);
   border-radius: var(--r);
   background: oklch(96.5% 0.005 248 / 0.72);
   text-align: left;
@@ -891,11 +954,12 @@ input:disabled {
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
-  border: 1px solid var(--line-soft);
+  border: 1px solid var(--line-faint);
   border-radius: var(--r);
   background: oklch(96.5% 0.005 248 / 0.72);
   color: var(--ink-soft);
   font-size: 11.5px;
+  font-weight: 520;
   transition:
     border-color 180ms var(--ease-out),
     background-color 180ms var(--ease-out),
@@ -1112,7 +1176,8 @@ input:disabled {
     grid-template-columns: 1fr 1fr;
   }
 
-  .uploader input[type="text"] {
+  .prompt-field,
+  .upload-error {
     grid-column: 1 / -1;
   }
 
@@ -1138,8 +1203,19 @@ input:disabled {
     min-height: auto;
   }
 
+  .proof-row {
+    margin-top: 9px;
+  }
+
+  .proof-row span {
+    flex: 1 1 104px;
+    justify-content: center;
+  }
+
   .topbar h2 {
-    font-size: 24px;
+    font-size: 23px;
+    line-height: 1.1;
+    text-wrap: wrap;
   }
 
   .topbar-metrics {
@@ -1147,6 +1223,7 @@ input:disabled {
   }
 
   .topbar-metrics div {
+    min-width: 0;
     flex: 1;
   }
 
@@ -1165,6 +1242,20 @@ input:disabled {
 }
 
 @media (max-width: 560px) {
+  .app-shell {
+    display: block;
+  }
+
+  .nav-rail,
+  .workspace {
+    width: 100%;
+    max-width: calc(100vw - 20px);
+  }
+
+  .workspace {
+    margin-top: 10px;
+  }
+
   .nav-rail,
   .composer-panel,
   .parameter-strip,
@@ -1172,8 +1263,54 @@ input:disabled {
     padding: 10px;
   }
 
+  .topbar-metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .topbar,
+  .topbar-copy,
+  .topbar h2,
+  .proof-row,
+  .topbar-metrics,
+  .composer-panel,
+  .parameter-strip,
+  .chart-wrap,
+  .panel {
+    width: min(370px, calc(100vw - 20px));
+    max-width: min(370px, calc(100vw - 20px));
+  }
+
+  .topbar h2 {
+    font-size: 22px;
+  }
+
+  .proof-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .proof-row span {
+    min-width: 0;
+  }
+
   .uploader {
     grid-template-columns: 1fr;
+  }
+
+  .uploader > * {
+    min-width: 0;
+  }
+
+  .mode-seg {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .prompt-field,
+  .upload-error {
+    grid-column: auto;
   }
 
   .metrics {

@@ -286,9 +286,14 @@ export function App() {
 
       <main className="workspace">
         <header className="topbar">
-          <div>
+          <div className="topbar-copy">
             <div className="eyebrow">Live execution bench</div>
             <h2>Gemma 4 shapes the model while Cerebras keeps every answer visibly fast.</h2>
+            <div className="proof-row" aria-label="demo proof points">
+              <span>6 Gemma agents</span>
+              <span>Cerebras timing</span>
+              <span>Browser math</span>
+            </div>
           </div>
           <div className="topbar-metrics" aria-label="latest Cerebras timing">
             <div>
@@ -304,8 +309,8 @@ export function App() {
 
         <section className="composer-panel">
           <div className="composer-copy">
-            <span>Prompt, image, or screenshot</span>
-            <b>Generate a sandbox from intent, then tune it live.</b>
+            <span>Model request</span>
+            <b>Ask, attach, generate, tune.</b>
           </div>
           <Uploader onRun={(input) => void runCascade(input)} disabled={building} />
         </section>
