@@ -65,9 +65,21 @@ function gaussian(rng: () => number): number {
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function finiteParam(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
 function percentile(sortedAsc: number[], p: number): number {
-  const idx = Math.min(sortedAsc.length - 1, Math.max(0, Math.round((p / 100) * (sortedAsc.length - 1))));
-  return sortedAsc[idx];
+  if (!sortedAsc.length) return NaN;
+  const rank = clamp(p, 0, 100) / 100 * (sortedAsc.length - 1);
+  const lo = Math.floor(rank);
+  const hi = Math.ceil(rank);
+  if (lo === hi) return sortedAsc[lo];
+  return sortedAsc[lo] + (sortedAsc[hi] - sortedAsc[lo]) * (rank - lo);
 }
 
 const fmtPct = (x: number) => `${x.toFixed(1)}%`;
@@ -76,9 +88,11 @@ const fmtMoney = (x: number) => `$${x.toFixed(0)}`;
 // --- run() ------------------------------------------------------------------
 
 function run(params: ParamSet): SimResult {
-  const sigma = (params.sigma ?? 18) / 100;
-  const mu = (params.drift ?? 7) / 100;
-  const horizon = Math.max(1, Math.round(params.horizon ?? 30));
+  const sigmaPct = clamp(finiteParam(params.sigma, 18), 5, 40);
+  const driftPct = clamp(finiteParam(params.drift, 7), -5, 15);
+  const sigma = sigmaPct / 100;
+  const mu = driftPct / 100;
+  const horizon = Math.round(clamp(finiteParam(params.horizon, 30), 5, 40));
   const steps = horizon * STEPS_PER_YEAR;
   const dt = 1 / STEPS_PER_YEAR;
   const logDrift = (mu - 0.5 * sigma * sigma) * dt;
@@ -139,7 +153,22 @@ function run(params: ParamSet): SimResult {
       { id: 'var_95', label: '95% VaR', value: fmtPct(var95) },
       { id: 'median', label: 'Median outcome', value: fmtMoney(median) },
     ],
-    raw: { time, s0: S0, barrier: BARRIER, terminal: terminals, vMin, vMax, tMax: time[time.length - 1] },
+    raw: {
+      time,
+      s0: S0,
+      barrier: BARRIER,
+      terminal: terminals,
+      vMin,
+      vMax,
+      tMax: time[time.length - 1],
+      sigma,
+      mu,
+      horizon,
+      steps,
+      stepsPerYear: STEPS_PER_YEAR,
+      nPaths: N_PATHS,
+      monitoring: 'monthly-grid',
+    },
   };
 }
 
@@ -269,10 +298,10 @@ const spec: DashboardSpec = {
   explainer: {
     entry:
       'This shows many possible market journeys over time. Most paths grow, but some dip badly — ' +
-      'the share that falls through the floor is the "ruin" chance. Turn volatility up and the danger grows.',
+      'the share that crosses the monthly-monitored floor is the "ruin" chance. Turn volatility up and the danger grows.',
     expert:
-      'A GBM ensemble of 500 paths. The fan shows the 5–95 and 25–75 percentile cones; the histogram is ' +
-      'the terminal distribution. P(ruin) is the fraction breaching the barrier; 95% VaR is the 5th-percentile loss.',
+      'A monthly-stepped GBM ensemble of 500 paths. The fan shows the 5–95 and 25–75 interpolated percentile cones; the histogram is ' +
+      'the terminal distribution. P(ruin) is the fraction breaching the grid-monitored barrier; 95% VaR is the terminal 5th-percentile loss.',
   },
 };
 

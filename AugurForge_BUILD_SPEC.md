@@ -197,7 +197,7 @@ All return **strict JSON** (use `response_format` json schema where supported) e
 | **modeler** | **yes (image)** | data + **chart/sketch image** | `{ templateId, params: ParamSet, sliders: SliderDef[], mapping }` | *See* the input, infer model + parameters + ranges. **This is a hero call.** |
 | **visualizer** | no | model spec | `DashboardSpec` | Choose views (2d/3d), sliders, labels, title. |
 | **sensitivity** | no | params + `SimResult.metrics` + delta | streamed prose | Why the outcome moved; which driver dominates. |
-| **risk** | no | current scenario + thresholds | `RiskFlag` | Tail risks; Solvency II SCR / IFRS-17 flags. |
+| **risk** | no | current scenario + supplied thresholds / assumptions | `RiskFlag` | Tail risks, model assumptions, and governance review points. |
 | **explainer** | no | scenario + depth ('entry'\|'expert') | streamed prose | The adjustable-depth narrative. |
 
 **Generative path (hero, stretch-but-prioritised):** a `generate` mode where the Modeler/Visualizer emit a **brand-new `TemplateModule` spec + a small JS `run()` body** for a model not in the library. Keep a **pre-tested fallback** so the live demo can't faceplant. Frame the demo line: *"Gemma wrote this entire interactive model in ~1 second."*
@@ -231,7 +231,7 @@ chat(opts: {
 
 Build this **fully** in the scaffold; it is the pattern every other template copies.
 
-- **`run(params)`** — GBM ensemble: `S_{t+1} = S_t · exp((μ − ½σ²)dt + σ√dt · Z)`. Params: `sigma` (slider 5–40%), `drift`, `horizon`. Compute `paths`, terminal distribution, and `metrics`: **P(ruin)** = fraction whose min < barrier; **95% VaR** = 5th-percentile loss.
+- **`run(params)`** — monthly-stepped GBM ensemble: `S_{t+1} = S_t · exp((μ − ½σ²)dt + σ√dt · Z)`. Params: `sigma` (slider 5–40%), `drift`, `horizon`. Compute `paths`, terminal distribution, and `metrics`: **P(ruin)** = fraction whose grid-monitored min < barrier; **95% VaR** = terminal 5th-percentile loss.
 - **`spec`** — `views: ['2d','3d']`, `defaultView:'2d'`, slider `sigma`, explainer entry/expert text.
 - **`render2D`** (Plotly) — **fan / percentile cone** + terminal **histogram**; Animate = paths draw left→right, a "today" line sweeps, histogram builds from samples.
 - **`render3D`** (Three.js) — **ribbon field** (instanced lines you can orbit) and/or **probability mountain** (distribution as a surface); Animate = paths stream in, surface morphs with σ, gentle auto-rotate.

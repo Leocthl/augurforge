@@ -64,9 +64,9 @@ function mockSpec(modeler: ModelerResult): VisualizerResult {
     sliders: modeler.sliders,
     explainer: {
       entry:
-        'This shows many possible market journeys over time. Most paths grow, but some dip badly; the share that falls through the floor is the ruin chance.',
+        'This shows many possible market journeys over time. Most paths grow, but some dip badly; the share that crosses the monthly-monitored floor is the ruin chance.',
       expert:
-        'A GBM ensemble of 500 paths. The fan shows percentile cones; the histogram is the terminal distribution. P(ruin) is the fraction breaching the barrier; 95% VaR is the 5th-percentile loss.',
+        'A monthly-stepped GBM ensemble of 500 paths. The fan shows interpolated percentile cones; the histogram is the terminal distribution. P(ruin) is the fraction breaching the grid-monitored barrier; 95% VaR is the terminal 5th-percentile loss.',
     },
   };
 }

@@ -16,7 +16,7 @@ function mockText(ctx: TweakContext): string {
       return (
         `Generated Black-Scholes sandbox: spot=${ctx.params.spot}, strike=${ctx.params.strike}, vol=${ctx.params.volatility}%, ` +
         `rate=${ctx.params.rate}%, maturity=${ctx.params.maturity}y. The call is ${call}, the put is ${put}, and call delta is ${delta}. ` +
-        `Treat this as a fast closed-form sensitivity view; constant volatility, European exercise, and continuous compounding are assumptions to review.`
+        `Treat this as a fast closed-form sensitivity view; no dividends, constant volatility, European exercise, and continuous compounding are assumptions to review.`
       );
     }
     return (
@@ -33,13 +33,13 @@ function mockText(ctx: TweakContext): string {
       `Under geometric Brownian motion with σ=${sigma}% and drift μ=${ctx.params.drift}%, the ` +
       `${ctx.params.horizon}-year terminal distribution is right-skewed. The 5th-percentile loss ` +
       `(95% VaR) is ${varMetric}; modelled ruin probability is ${ruin}. The tail is volatility-driven: ` +
-      `P(ruin) scales super-linearly in σ while drift shifts the median, not the left tail.`
+      `Higher σ usually raises barrier and left-tail risk sharply; drift shifts the whole distribution and partly offsets that pressure.`
     );
   }
   return (
     `Think of this as ${ctx.params.horizon} years of possible market journeys. With volatility at ` +
     `${sigma}%, most paths grow, but some dip badly: about ${ruin} of them fall through the floor ` +
-    `(that’s the "ruin" chance), and a bad-but-not-worst year loses around ${varMetric}. ` +
+    `(that’s the "ruin" chance), and the terminal 5th-percentile loss is around ${varMetric}. ` +
     `Turn volatility up and the danger grows fast.`
   );
 }

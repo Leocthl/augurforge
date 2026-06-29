@@ -185,7 +185,7 @@ export type OnEvent = (e: AgentEvent) => void;
 export interface RiskFlag {
   level: 'ok' | 'warning' | 'danger';
   text: string;
-  /** Citation / threshold reference. */
+  /** Citation, assumption, or governance reference. */
   ref?: string;
 }
 
