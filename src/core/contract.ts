@@ -160,6 +160,7 @@ export interface RenderOpts {
  */
 export interface Renderer {
   update(sim: SimResult, animate: boolean): void;
+  exportPng?(): Promise<string>;
   destroy(): void;
 }
 

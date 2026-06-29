@@ -28,5 +28,14 @@ declare module 'plotly.js-dist-min' {
     traces?: number[],
   ): Promise<HTMLElement>;
   export function animate(root: HTMLElement, frameOrGroup: unknown, opts?: unknown): Promise<void>;
+  export function toImage(
+    root: HTMLElement,
+    opts?: {
+      format?: 'png' | 'jpeg' | 'webp' | 'svg';
+      width?: number;
+      height?: number;
+      scale?: number;
+    },
+  ): Promise<string>;
   export function purge(root: HTMLElement): void;
 }

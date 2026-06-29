@@ -27,6 +27,8 @@ export interface SceneHandle {
   renderer: THREE.WebGLRenderer;
   controls: OrbitControls;
   setAutoRotate(on: boolean): void;
+  setViewPreset(preset: 'iso' | 'front' | 'top' | 'side'): void;
+  exportPng(): Promise<string>;
   /** Per-frame hook; receives elapsed seconds. */
   onFrame(cb: (elapsed: number) => void): void;
   dispose(): void;
@@ -67,11 +69,18 @@ export function createScene(el: HTMLElement, theme: Theme): SceneHandle {
   const scene = new THREE.Scene();
   const width = el.clientWidth || 640;
   const height = el.clientHeight || 420;
+  const target = new THREE.Vector3(0, 0, 0);
+  const presets = {
+    iso: { position: new THREE.Vector3(5.5, 3.2, 6.5), up: new THREE.Vector3(0, 1, 0) },
+    front: { position: new THREE.Vector3(0, 0.25, 8.6), up: new THREE.Vector3(0, 1, 0) },
+    top: { position: new THREE.Vector3(0, 8.2, 0.01), up: new THREE.Vector3(0, 0, -1) },
+    side: { position: new THREE.Vector3(8.2, 2.2, 0.01), up: new THREE.Vector3(0, 1, 0) },
+  } as const;
 
   const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-  camera.position.set(5.5, 3.2, 6.5);
+  camera.position.copy(presets.iso.position);
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(width, height, false);
   el.appendChild(renderer.domElement);
@@ -79,8 +88,35 @@ export function createScene(el: HTMLElement, theme: Theme): SceneHandle {
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
+  controls.enablePan = true;
+  controls.enableZoom = true;
+  controls.screenSpacePanning = true;
+  controls.rotateSpeed = 0.72;
+  controls.panSpeed = 0.82;
+  controls.zoomSpeed = 0.9;
+  controls.minDistance = 2.7;
+  controls.maxDistance = 14;
   controls.autoRotateSpeed = 0.9;
-  controls.target.set(0, 0, 0);
+  controls.mouseButtons = {
+    LEFT: THREE.MOUSE.ROTATE,
+    MIDDLE: THREE.MOUSE.DOLLY,
+    RIGHT: THREE.MOUSE.PAN,
+  };
+  controls.touches = {
+    ONE: THREE.TOUCH.ROTATE,
+    TWO: THREE.TOUCH.DOLLY_PAN,
+  };
+  controls.target.copy(target);
+
+  const setViewPreset = (preset: keyof typeof presets) => {
+    const next = presets[preset];
+    controls.autoRotate = false;
+    camera.up.copy(next.up);
+    camera.position.copy(next.position);
+    controls.target.copy(target);
+    camera.lookAt(target);
+    controls.update();
+  };
 
   const hemi = new THREE.HemisphereLight(0xbfdbfe, theme === 'light' ? 0xe2e8f0 : 0x0a1626, 1.4);
   const dir = new THREE.DirectionalLight(0xffffff, 1.1);
@@ -126,6 +162,21 @@ export function createScene(el: HTMLElement, theme: Theme): SceneHandle {
     controls,
     setAutoRotate: (on) => {
       controls.autoRotate = on;
+    },
+    setViewPreset,
+    exportPng: async () => {
+      controls.update();
+      renderer.render(scene, camera);
+      const source = renderer.domElement;
+      const canvas = document.createElement('canvas');
+      canvas.width = source.width;
+      canvas.height = source.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Could not create PNG export canvas');
+      ctx.fillStyle = theme === 'light' ? '#f8fafc' : '#101826';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(source, 0, 0);
+      return canvas.toDataURL('image/png');
     },
     onFrame: (cb) => frameCbs.push(cb),
     dispose: () => {

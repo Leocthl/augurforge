@@ -136,6 +136,15 @@ export function purge(el: HTMLElement): void {
   Plotly.purge(el);
 }
 
+export function exportPlotlyPng(el: HTMLElement): Promise<string> {
+  return Plotly.toImage(el, {
+    format: 'png',
+    width: Math.max(640, Math.round(el.clientWidth || 900)),
+    height: Math.max(360, Math.round(el.clientHeight || 520)),
+    scale: 2,
+  });
+}
+
 /**
  * Reveal animation: grow the x-axis range left→right with an ease, like the paths
  * are drawing in. Returns a cancel function (call on update/destroy).

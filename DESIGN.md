@@ -53,7 +53,8 @@ Do not return to lime/cyan neon, purple gradients, or navy/gold finance themes.
 - Buttons: one primary style, one secondary style. Primary actions are dark graphite or blue, not gradients.
 - Segmented controls: active state is a quiet raised white panel.
 - Inputs: white or near-white with a visible border and clear focus ring.
-- Range sliders: blue track, dark thumb, stable height.
+- Range sliders: blue track, dark thumb, stable height, with a compact exact-value field when precision matters.
+- Chart viewport actions: export, fullscreen, and 3D view presets live as compact dark controls inside the chart frame; keep them clear of the title and give every control a visible focus state.
 - Agent chips: vertical list in the right rail, not a random cloud of pills.
 - Metrics: compact tiles inside one Metrics panel, with strong numeric hierarchy.
 - Generated model badge: amber, small, and artifact-like.

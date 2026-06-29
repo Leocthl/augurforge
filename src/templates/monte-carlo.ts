@@ -23,6 +23,7 @@ import {
   baseLayout,
   barrierShape,
   conePair,
+  exportPlotlyPng,
   medianLine,
   mount,
   PALETTE,
@@ -212,6 +213,7 @@ function render2D(el: HTMLElement, sim: SimResult, opts: RenderOpts): Renderer {
 
   return {
     update: (next, animate) => draw(next, animate),
+    exportPng: () => exportPlotlyPng(el),
     destroy: () => {
       cancelReveal?.();
       purge(el);
@@ -236,6 +238,25 @@ const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 function render3D(el: HTMLElement, sim: SimResult, opts: RenderOpts): Renderer {
   const handle = createScene(el, opts.theme);
   const group = new THREE.Group();
+  const nav = document.createElement('div');
+  nav.className = 'three-nav';
+  nav.innerHTML = `
+    <button type="button" data-view="iso" title="Isometric view">Iso</button>
+    <button type="button" data-view="front" title="Front view">Front</button>
+    <button type="button" data-view="top" title="Top view">Top</button>
+    <button type="button" data-view="side" title="Side view">Side</button>
+  `;
+  nav.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLButtonElement)) return;
+    const view = target.dataset.view;
+    if (view === 'iso' || view === 'front' || view === 'top' || view === 'side') {
+      handle.setViewPreset(view);
+      for (const button of nav.querySelectorAll('button')) button.classList.toggle('active', button === target);
+    }
+  });
+  nav.querySelector<HTMLButtonElement>('[data-view="iso"]')?.classList.add('active');
+  el.appendChild(nav);
   handle.scene.add(group);
 
   // Reveal state, driven once from the per-frame hook (no per-update listener leaks).
@@ -271,7 +292,11 @@ function render3D(el: HTMLElement, sim: SimResult, opts: RenderOpts): Renderer {
 
   return {
     update: (next, animate) => build(next, animate),
-    destroy: () => handle.dispose(),
+    exportPng: () => handle.exportPng(),
+    destroy: () => {
+      nav.remove();
+      handle.dispose();
+    },
   };
 }
 

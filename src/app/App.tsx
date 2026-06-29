@@ -27,7 +27,7 @@ import { runPipeline, runTweak, type PipelineInput } from '../core/pipeline';
 import type { GeneratedTemplateBuild } from '../core/generative';
 import { getTemplate } from '../templates';
 import { USE_LIVE } from '../core/cerebras';
-import { Renderer } from './Renderer';
+import { Renderer, type RendererApi } from './Renderer';
 import { Uploader } from './Uploader';
 import { SpeedHud } from './SpeedHud';
 
@@ -54,6 +54,39 @@ function paramsFromSpec(spec: DashboardSpec): ParamSet {
 
 function formatVal(v: number, s: SliderDef): string {
   return `${v}${s.unit ?? ''}`;
+}
+
+function clampSliderValue(value: number, slider: SliderDef): number {
+  return Math.min(slider.max, Math.max(slider.min, value));
+}
+
+function draftsFromParams(spec: DashboardSpec, params: ParamSet): Record<string, string> {
+  return Object.fromEntries(spec.sliders.map((s) => [s.id, String(params[s.id] ?? s.value)]));
+}
+
+function parseDraftValue(raw: string | number): number | null {
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
+  if (raw.trim() === '') return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function slugifyFilename(value: string): string {
+  const slug = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 64);
+  return slug || 'augurforge-chart';
+}
+
+function downloadDataUrl(dataUrl: string, filename: string): void {
+  const link = document.createElement('a');
+  link.href = dataUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
 }
 
 interface AuditItem {
@@ -159,11 +192,17 @@ export function App() {
   const [template, setTemplate] = useState<TemplateModule>(initial);
   const [spec, setSpec] = useState<DashboardSpec>(initial.spec);
   const [params, setParams] = useState<ParamSet>(() => paramsFromSpec(initial.spec));
+  const [paramDrafts, setParamDrafts] = useState<Record<string, string>>(() =>
+    draftsFromParams(initial.spec, paramsFromSpec(initial.spec)),
+  );
   const [sim, setSim] = useState<SimResult>(() => initial.run(paramsFromSpec(initial.spec)));
   const [view, setView] = useState<ViewKind>(initial.spec.defaultView);
   const [animate, setAnimate] = useState(false);
   const [depth, setDepth] = useState<'entry' | 'expert'>('entry');
   const [generatedBuild, setGeneratedBuild] = useState<GeneratedTemplateBuild | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [exportingPng, setExportingPng] = useState(false);
+  const [chartActionError, setChartActionError] = useState<string | null>(null);
 
   const [agents, setAgents] = useState<Partial<Record<AgentId, AgentStatus>>>({});
   const [agentErrors, setAgentErrors] = useState<Partial<Record<AgentId, string>>>({});
@@ -184,6 +223,8 @@ export function App() {
   const dragStart = useRef<{ id: string; from: number } | null>(null);
   const cascadeAbortRef = useRef<AbortController | null>(null);
   const tweakAbortRef = useRef<AbortController | null>(null);
+  const chartWrapRef = useRef<HTMLElement>(null);
+  const rendererRef = useRef<RendererApi>(null);
 
   // --- the single event sink for the streaming cascade ---
   const onEvent = useCallback((e: AgentEvent) => {
@@ -261,6 +302,7 @@ export function App() {
         setTemplate(tmpl);
         setSpec(res.spec);
         setParams(p);
+        setParamDrafts(draftsFromParams(res.spec, p));
         setView(res.spec.defaultView);
         setGeneratedBuild(res.generatedTemplate ?? null);
         const s = tmpl.run(p);
@@ -298,6 +340,14 @@ export function App() {
     [],
   );
 
+  useEffect(() => {
+    const syncFullscreen = () => {
+      setIsFullscreen(document.fullscreenElement === chartWrapRef.current);
+    };
+    document.addEventListener('fullscreenchange', syncFullscreen);
+    return () => document.removeEventListener('fullscreenchange', syncFullscreen);
+  }, []);
+
   // --- slider loop: free client-side math on drag, rate-limited agents on release ---
   const onSliderPointerDown = (id: string) => {
     dragStart.current = { id, from: paramsRef.current[id] };
@@ -307,17 +357,39 @@ export function App() {
     const next = { ...paramsRef.current, [id]: value };
     paramsRef.current = next;
     setParams(next);
+    setParamDrafts((prev) => ({ ...prev, [id]: String(value) }));
+  };
+
+  const commitParamValue = (id: string, raw: string | number) => {
+    const slider = spec.sliders.find((x) => x.id === id);
+    if (!slider) return;
+    const previous = paramsRef.current[id] ?? slider.value;
+    const parsed = parseDraftValue(raw);
+    if (parsed === null) {
+      setParamDrafts((prev) => ({ ...prev, [id]: String(previous) }));
+      dragStart.current = null;
+      return;
+    }
+    const value = clampSliderValue(parsed, slider);
+    const next = { ...paramsRef.current, [id]: value };
+    paramsRef.current = next;
+    setParams(next);
+    setParamDrafts((prev) => ({ ...prev, [id]: String(value) }));
+    const from = dragStart.current?.id === id ? dragStart.current.from : previous;
+    if (value === previous && from === previous) {
+      dragStart.current = null;
+      return;
+    }
+    const s = recompute(next);
+    const changed = from !== value
+      ? { id, label: slider.label, from, to: value }
+      : undefined;
+    dragStart.current = null;
+    runTweakWithAbort({ templateId: spec.templateId, params: next, metrics: s.metrics, raw: s.raw, depth: depthRef.current, changed });
   };
 
   const onSliderRelease = (id: string) => {
-    const p = paramsRef.current;
-    const s = recompute(p);
-    const slider = spec.sliders.find((x) => x.id === id);
-    const changed = dragStart.current
-      ? { id, label: slider?.label, from: dragStart.current.from, to: p[id] }
-      : undefined;
-    dragStart.current = null;
-    runTweakWithAbort({ templateId: spec.templateId, params: p, metrics: s.metrics, raw: s.raw, depth: depthRef.current, changed });
+    commitParamValue(id, paramsRef.current[id]);
   };
 
   const onDepth = (d: 'entry' | 'expert') => {
@@ -325,6 +397,37 @@ export function App() {
     depthRef.current = d;
     runTweakWithAbort({ templateId: spec.templateId, params: paramsRef.current, metrics: sim.metrics, raw: sim.raw, depth: d });
   };
+
+  const onExportPng = useCallback(async () => {
+    setChartActionError(null);
+    setExportingPng(true);
+    try {
+      const dataUrl = await rendererRef.current?.exportPng();
+      if (!dataUrl) throw new Error('No chart renderer is mounted');
+      downloadDataUrl(dataUrl, `${slugifyFilename(spec.title)}-${view}.png`);
+    } catch (err) {
+      console.error('[chart export]', err);
+      setChartActionError('PNG export failed');
+    } finally {
+      setExportingPng(false);
+    }
+  }, [spec.title, view]);
+
+  const onToggleFullscreen = useCallback(async () => {
+    const el = chartWrapRef.current;
+    if (!el) return;
+    setChartActionError(null);
+    try {
+      if (document.fullscreenElement === el) {
+        await document.exitFullscreen();
+      } else {
+        await el.requestFullscreen();
+      }
+    } catch (err) {
+      console.error('[chart fullscreen]', err);
+      setChartActionError('Fullscreen unavailable');
+    }
+  }, []);
 
   const showViewToggle = spec.views.length > 1;
   const stackMode = USE_LIVE ? 'Live Cerebras' : 'Mock rehearsal';
@@ -469,6 +572,42 @@ export function App() {
                       onPointerUp={() => onSliderRelease(s.id)}
                       onKeyUp={() => onSliderRelease(s.id)}
                     />
+                    <div className="slider-input-row">
+                      <input
+                        className="param-number"
+                        type="number"
+                        aria-label={`${s.label} exact value`}
+                        min={s.min}
+                        max={s.max}
+                        step={s.step}
+                        value={paramDrafts[s.id] ?? String(params[s.id] ?? s.value)}
+                        disabled={building}
+                        onFocus={() => onSliderPointerDown(s.id)}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          setParamDrafts((prev) => ({ ...prev, [s.id]: raw }));
+                          const parsed = parseDraftValue(raw);
+                          if (parsed !== null) {
+                            const nextValue = clampSliderValue(parsed, s);
+                            const next = { ...paramsRef.current, [s.id]: nextValue };
+                            paramsRef.current = next;
+                            setParams(next);
+                          }
+                        }}
+                        onBlur={(e) => commitParamValue(s.id, e.currentTarget.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            commitParamValue(s.id, e.currentTarget.value);
+                            e.currentTarget.blur();
+                          } else if (e.key === 'Escape') {
+                            setParamDrafts((prev) => ({ ...prev, [s.id]: String(paramsRef.current[s.id] ?? s.value) }));
+                            e.currentTarget.blur();
+                          }
+                        }}
+                      />
+                      {s.unit && <span>{s.unit}</span>}
+                    </div>
                   </div>
                 ))}
 
@@ -491,7 +630,7 @@ export function App() {
               </div>
             </section>
 
-            <section className="chart-wrap">
+            <section className="chart-wrap" ref={chartWrapRef}>
               <div className="chart-title">
                 <div className="title-line">
                   <h2>{spec.title}</h2>
@@ -500,7 +639,29 @@ export function App() {
                 {spec.subtitle && <span>{spec.subtitle}</span>}
                 {generatedBuild && <span className="generated-note">{generatedBuild.note}</span>}
               </div>
-              <Renderer template={template} sim={sim} view={view} animate={animate} theme={THEME} />
+              <div className="chart-actions" aria-label="Chart actions">
+                <button
+                  type="button"
+                  className="chart-action png"
+                  onClick={() => void onExportPng()}
+                  disabled={exportingPng}
+                  title="Export PNG"
+                  aria-label="Export chart as PNG"
+                >
+                  PNG
+                </button>
+                <button
+                  type="button"
+                  className={`chart-action icon ${isFullscreen ? 'active' : ''}`}
+                  onClick={() => void onToggleFullscreen()}
+                  title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                  aria-label={isFullscreen ? 'Exit fullscreen chart view' : 'Open fullscreen chart view'}
+                >
+                  <span className={`fullscreen-glyph ${isFullscreen ? 'exit' : 'enter'}`} aria-hidden="true" />
+                </button>
+              </div>
+              {chartActionError && <div className="chart-action-note" role="status">{chartActionError}</div>}
+              <Renderer ref={rendererRef} template={template} sim={sim} view={view} animate={animate} theme={THEME} />
             </section>
           </div>
 
