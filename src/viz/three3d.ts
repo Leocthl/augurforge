@@ -82,7 +82,7 @@ export function createScene(el: HTMLElement, theme: Theme): SceneHandle {
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setSize(width, height, false);
+  renderer.setSize(width, height);
   el.appendChild(renderer.domElement);
 
   const controls = new OrbitControls(camera, renderer.domElement);
@@ -150,7 +150,7 @@ export function createScene(el: HTMLElement, theme: Theme): SceneHandle {
     const h = el.clientHeight || height;
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
-    renderer.setSize(w, h, false);
+    renderer.setSize(w, h);
   };
   const ro = new ResizeObserver(resize);
   ro.observe(el);
@@ -210,7 +210,9 @@ export function densitySurface(
   for (let j = 0; j < rows; j++) {
     for (let i = 0; i < cols; i++) {
       const idx = j * cols + i;
-      const d = grid[i][j];
+      // PlaneGeometry rows run top→bottom (j=0 is at +y), but grid row 0 is the
+      // lowest value — flip so high value sits at the top, matching the ribbons.
+      const d = grid[i][rows - 1 - j];
       pos.setZ(idx, d * BOX.z);
       densityColor(d, c);
       colors[idx * 3] = c.r;
