@@ -1,6 +1,7 @@
 # CLAUDE.md — AugurForge
 
 > **Every Claude session reads this first.** Full spec: `AugurForge_BUILD_SPEC.md`.
+> Product/design context: `PRODUCT.md` and `DESIGN.md`.
 
 ## What this is
 AugurForge is an **instant, interactive model sandbox for actuaries & quants.** Drop in a model,
@@ -40,6 +41,20 @@ Flip `VITE_USE_LIVE=true` + a key in `.env` to route real calls through `server/
 testing, debug, design, docs, refactoring (e.g. andrej-karpathy-skills, superpowers, ECC, and
 whatever else is installed). Not limited to a fixed list; decide per task. Default to *using* a
 relevant skill over doing it unaided.
+
+## Product and design rules
+- Read `PRODUCT.md` and `DESIGN.md` before touching `/src/app` or `src/index.css`.
+- UI register is **product**, not marketing. Build the usable modeling workbench first.
+- Preserve the current direction: Geist Variable typography, restrained light canvas, quiet frosted
+  panels, one disciplined blue accent, and a dark chart viewport for contrast.
+- Do not drift into a neon finance dashboard, purple AI gradient shell, cyber cockpit, beige SaaS
+  cream page, or generic landing-page hero.
+- Glass/translucency is allowed only when it clarifies layering. It is not decoration.
+- Keep `Gemma 4`, `Cerebras`, `TTFT`, `tokens/s`, `deterministic browser math`, and
+  `decision-support, not advice` visible in the product surface where relevant.
+- Cards stay at 8px radius. No nested cards, no side-stripe accents, no gradient text.
+- The attached SideKlick-like font reference maps to the local `Geist Variable` face in
+  `public/fonts/geist-latin-wght-normal.woff2`.
 
 ## Coding norms (from andrej-karpathy-skills)
 - **Think before coding.** State assumptions; surface tradeoffs; if unclear, ask.

@@ -29,8 +29,8 @@ export function jsonSchema(name: string, schema: Record<string, unknown>): objec
     type: 'json_schema',
     json_schema: {
       name,
-      strict: true,
-      schema,
+      strict: false,
+      schema: cerebrasSchema(schema),
     },
   };
 }
@@ -44,9 +44,26 @@ export function objectSchema(
     type: 'object',
     additionalProperties: false,
     properties,
-    required,
+    ...(required.length ? { required } : {}),
     ...extra,
   };
+}
+
+function cerebrasSchema(schema: unknown): unknown {
+  if (Array.isArray(schema)) return schema.map(cerebrasSchema);
+  if (!isRecord(schema)) return schema;
+
+  const next: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(schema)) {
+    if (key === 'minItems' || key === 'maxItems') continue;
+    next[key] = cerebrasSchema(value);
+  }
+
+  if (next.type === 'object' && !('properties' in next) && !('anyOf' in next)) {
+    next.properties = {};
+  }
+
+  return next;
 }
 
 export function stringEnum(values: string[]): Record<string, unknown> {

@@ -51,9 +51,9 @@ const DEFAULT_SLIDERS: SliderDef[] = [
 
 const FALLBACK_EXPLAINER: Explainer = {
   entry:
-    'This generated sandbox prices a European option from spot, strike, volatility, rate, and maturity. The curves show how call and put values move as the underlying price changes.',
+    'This generated sandbox prices a non-dividend-paying European option from spot, strike, volatility, rate, and maturity. The curves show how call and put values move as the underlying price changes.',
   expert:
-    'Black-Scholes assumes lognormal returns, constant volatility, continuous compounding, and European exercise. The dashboard shows closed-form call/put prices plus first-order Greeks for sensitivity review.',
+    'Black-Scholes assumes no dividends, lognormal returns, constant volatility, continuous compounding, and European exercise. The dashboard shows closed-form call/put prices plus first-order Greeks for sensitivity review.',
 };
 
 export function wantsGeneratedModel(intent?: string, mode?: string): boolean {
@@ -292,6 +292,11 @@ function runBlackScholes(params: ParamSet): SimResult {
       volatility,
       rate,
       maturity,
+      dividendYield: 0,
+      call: current.call,
+      put: current.put,
+      delta: current.delta,
+      vega: current.vega,
       d1: current.d1,
       d2: current.d2,
       xMin,

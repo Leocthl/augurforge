@@ -57,37 +57,40 @@ export function Uploader({ onRun, disabled }: Props) {
     <div className="uploader">
       <div className="seg mode-seg" role="tablist" aria-label="model build mode">
         <button type="button" className={mode !== 'generate' ? 'active' : ''} onClick={() => setMode('auto')}>
-          Auto route
+          Auto
         </button>
         <button type="button" className={mode === 'generate' ? 'active' : ''} onClick={() => setMode('generate')}>
           Generate
         </button>
       </div>
-      <input
-        type="text"
-        placeholder={
-          mode === 'generate'
-            ? 'Ask Gemma to generate a new model, e.g. Black-Scholes option pricing'
-            : 'Describe a model, or attach a chart / screenshot / sketch...'
-        }
-        value={intent}
-        disabled={disabled}
-        onChange={(e) => setIntent(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') submit();
-        }}
-      />
+      <div className="prompt-field">
+        <input
+          type="text"
+          aria-label="model intent"
+          placeholder={
+            mode === 'generate'
+              ? 'Build a Black-Scholes option pricing sandbox'
+              : 'Describe a model, chart, screenshot, or sketch'
+          }
+          value={intent}
+          disabled={disabled}
+          onChange={(e) => setIntent(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') submit();
+          }}
+        />
+      </div>
       <label className={`drop ${imageName ? 'has' : ''}`}>
         {imageName ?? 'Attach image'}
         <input type="file" accept="image/*" hidden disabled={disabled} onChange={(e) => readFile(e.target.files?.[0])} />
       </label>
-      {fileError && <span className="upload-error">{fileError}</span>}
       <button className="btn" type="button" onClick={useGeneratedDemo} disabled={disabled}>
-        Black-Scholes demo
+        Black-Scholes
       </button>
       <button className="btn btn-primary" onClick={submit} disabled={disabled}>
         {mode === 'generate' ? 'Generate model' : 'Build'}
       </button>
+      {fileError && <span className="upload-error">{fileError}</span>}
     </div>
   );
 }

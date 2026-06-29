@@ -14,7 +14,7 @@ function mockText(ctx: TweakContext): string {
       const dir = ctx.changed.to >= ctx.changed.from ? 'raising' : 'lowering';
       return (
         `${dir} ${ctx.changed.label ?? ctx.changed.id} moved the call price to ${metric}. ` +
-        `Volatility and the spot-to-strike gap dominate this generated option sandbox; rate and maturity mostly tune the discounting and time value.`
+        `Moneyness and volatility dominate this no-dividend European option sandbox; rate and maturity tune discounting and time value.`
       );
     }
     return (
@@ -30,12 +30,12 @@ function mockText(ctx: TweakContext): string {
     return (
       `Volatility is the dominant driver here. ${dir} ${ctx.changed.label ?? ctx.changed.id} ` +
       `to ${ctx.changed.to} widened the outcome cone and moved P(ruin) to ${ruin}. ` +
-      `Drift only partially offsets the wider dispersion at σ=${sigma}%.`
+      `Drift shifts the distribution, but it only partially offsets wider dispersion at σ=${sigma}%.`
     );
   }
   return (
     `At σ=${sigma}% the loss cone is moderate and P(ruin) sits at ${ruin}. ` +
-    `Volatility, not drift, controls the tail — expect P(ruin) to rise sharply as σ climbs.`
+    `Volatility is usually the strongest tail driver here, while drift moves the distribution up or down.`
   );
 }
 
