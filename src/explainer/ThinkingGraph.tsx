@@ -22,14 +22,15 @@ interface VariantParams {
   bloomThreshold: number;
   autoRotateSpeed: number;
   cameraZ: number;
+  nodeRelSize: number;
   background: string;
   labelFloor: number;
   labelCeil: number;
 }
 
 const VARIANT: Record<GraphVariant, VariantParams> = {
-  showcase: { bloomStrength: 2.2, bloomRadius: 0.9, bloomThreshold: 0.1, autoRotateSpeed: 0.7, cameraZ: 230, background: '#06090f', labelFloor: 3.5, labelCeil: 8 },
-  embed: { bloomStrength: 0.7, bloomRadius: 0.5, bloomThreshold: 0.2, autoRotateSpeed: 0.45, cameraZ: 150, background: '#11151c', labelFloor: 3, labelCeil: 6.5 },
+  showcase: { bloomStrength: 0.14, bloomRadius: 0.2, bloomThreshold: 0.78, autoRotateSpeed: 0.7, cameraZ: 220, nodeRelSize: 3.35, background: '#06090f', labelFloor: 2.6, labelCeil: 5.4 },
+  embed: { bloomStrength: 0.08, bloomRadius: 0.16, bloomThreshold: 0.82, autoRotateSpeed: 0.45, cameraZ: 165, nodeRelSize: 2.9, background: '#11151c', labelFloor: 2.4, labelCeil: 4.8 },
 };
 
 function prefersReducedMotion(): boolean {
@@ -111,7 +112,7 @@ export function ThinkingGraph({ data, width, height, variant = 'showcase', onCan
       graphData={data}
       backgroundColor={v.background}
       showNavInfo={false}
-      nodeRelSize={4}
+      nodeRelSize={v.nodeRelSize}
       rendererConfig={{ preserveDrawingBuffer: true, antialias: true }}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       nodeVal={(n: any) => n.size}

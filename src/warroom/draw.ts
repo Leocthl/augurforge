@@ -7,7 +7,7 @@
  * pushes in on it; an activation arrow links it to its upstream group (the reasoning topology).
  */
 import type { AgentId } from '../core/contract';
-import { drawOffice, type SceneLayout, type W2S, type Vec } from './scene';
+import { drawOffice, type BoardContext, type SceneLayout, type W2S, type Vec } from './scene';
 import type { Crowd, GroupStatus } from './crowd';
 import { blockIndex, frameRect } from './sheet';
 import { drawBubble } from './bubbles';
@@ -49,8 +49,8 @@ export interface SceneState {
   cssW: number;
   cssH: number;
   t: number; // seconds since start (for caret blink + arrow dash)
-  scenarioTitle: string;
-  latestMetric: { label: string; value: string } | null;
+  board: BoardContext;
+  backdrop: HTMLImageElement | null;
   ambient: AmbientBubble[];
 }
 
@@ -67,10 +67,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, s: SceneState): void {
   ctx.fillStyle = '#b9bdc6'; // letterbox behind the floor
   ctx.fillRect(0, 0, s.cssW, s.cssH);
 
-  drawOffice(ctx, s.scene, w2s, s.cam.zoom, s.cssW, s.cssH, {
-    title: s.scenarioTitle,
-    metric: s.latestMetric,
-  });
+  drawOffice(ctx, s.scene, w2s, s.cam.zoom, s.cssW, s.cssH, s.board, s.backdrop);
 
   drawArrow(ctx, s, w2s);
   drawSprites(ctx, s, w2s);

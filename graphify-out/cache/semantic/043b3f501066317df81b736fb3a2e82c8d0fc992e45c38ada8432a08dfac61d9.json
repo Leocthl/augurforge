@@ -1,0 +1,1 @@
+{"nodes": [{"id": "app_tsx", "label": "Main App Component", "file_type": "code", "source_file": "src/app/App.tsx"}], "edges": [{"source": "app_tsx", "target": "reasoning_panel_tsx", "relation": "calls", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "src/app/App.tsx"}], "hyperedges": []}

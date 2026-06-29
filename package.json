@@ -6,10 +6,13 @@
   "description": "Instant, interactive model sandbox for actuaries & quants — a Gemma-4-on-Cerebras agent swarm turns a model/dataset into a live, tweakable simulation.",
   "scripts": {
     "dev": "vite",
+    "dev:explainer": "vite --host 127.0.0.1 --port 5174 --strictPort",
     "server": "tsx watch server/proxy.ts",
     "dev:live": "concurrently -n web,proxy -c cyan,magenta \"vite\" \"tsx watch server/proxy.ts\"",
     "build": "tsc --noEmit && vite build",
+    "build:explainer": "vite build --config vite.explainer.config.ts",
     "preview": "vite preview",
+    "preview:explainer": "vite preview --config vite.explainer.config.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -18,7 +21,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-force-graph-3d": "^1.29.1",
-    "three": "^0.169.0",
+    "three": "^0.185.0",
     "three-spritetext": "^1.10.0"
   },
   "devDependencies": {
@@ -27,7 +30,7 @@
     "@types/node": "^22.7.0",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.0",
-    "@types/three": "^0.169.0",
+    "@types/three": "^0.185.0",
     "@vitejs/plugin-react": "^6.0.3",
     "concurrently": "^9.0.1",
     "cors": "^2.8.5",

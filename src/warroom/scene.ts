@@ -29,16 +29,24 @@ export interface SceneLayout {
   zones: DeskZone[];
 }
 
+export interface BoardContext {
+  title: string;
+  phase: string;
+  summary: string;
+  details: string[];
+  metric: { label: string; value: string } | null;
+}
+
 export type W2S = (wx: number, wy: number) => Vec;
 
-// Ring of six desks around the central board (fractions of the room).
+// Six desk islands in the generated situation-room background (fractions of the room).
 const SPOTS: Array<[number, number]> = [
-  [0.17, 0.30], // orchestrator  top-left
-  [0.83, 0.30], // modeler       top-right
-  [0.50, 0.17], // visualizer    top-centre
-  [0.17, 0.75], // sensitivity   bottom-left
-  [0.83, 0.75], // risk          bottom-right
-  [0.50, 0.85], // explainer     bottom-centre
+  [0.22, 0.34], // orchestrator  top-left
+  [0.78, 0.34], // modeler       top-right
+  [0.20, 0.58], // visualizer    mid-left
+  [0.80, 0.58], // sensitivity   mid-right
+  [0.24, 0.83], // risk          bottom-left
+  [0.76, 0.83], // explainer     bottom-right
 ];
 
 const PALETTE = {
@@ -59,8 +67,8 @@ const TILE = 40;
 
 export function buildScene(width: number, height: number, roleColor: Record<AgentId, string>): SceneLayout {
   const board: Rect = {
-    w: Math.min(width * 0.34, 360),
-    h: Math.min(height * 0.26, 190),
+    w: Math.min(width * 0.36, 520),
+    h: Math.min(height * 0.34, 300),
     x: 0,
     y: 0,
   };
@@ -114,6 +122,36 @@ function fillRectS(ctx: CanvasRenderingContext2D, w2s: W2S, zoom: number, r: Rec
   ctx.fillRect(Math.round(p.x), Math.round(p.y), Math.ceil(r.w * zoom), Math.ceil(r.h * zoom));
 }
 
+function drawBackdrop(ctx: CanvasRenderingContext2D, scene: SceneLayout, w2s: W2S, zoom: number, img: HTMLImageElement): void {
+  const p = w2s(0, 0);
+  const sourceAspect = img.naturalWidth / img.naturalHeight;
+  const targetAspect = scene.width / scene.height;
+  let sx = 0;
+  let sy = 0;
+  let sw = img.naturalWidth;
+  let sh = img.naturalHeight;
+
+  if (sourceAspect > targetAspect) {
+    sw = img.naturalHeight * targetAspect;
+    sx = (img.naturalWidth - sw) / 2;
+  } else {
+    sh = img.naturalWidth / targetAspect;
+    sy = (img.naturalHeight - sh) / 2;
+  }
+
+  ctx.drawImage(
+    img,
+    sx,
+    sy,
+    sw,
+    sh,
+    Math.round(p.x),
+    Math.round(p.y),
+    Math.ceil(scene.width * zoom),
+    Math.ceil(scene.height * zoom),
+  );
+}
+
 /** Paint floor + desks + the central board (with title + latest metric). */
 export function drawOffice(
   ctx: CanvasRenderingContext2D,
@@ -122,41 +160,50 @@ export function drawOffice(
   zoom: number,
   cssW: number,
   cssH: number,
-  board: { title: string; metric: { label: string; value: string } | null },
+  board: BoardContext,
+  backdrop: HTMLImageElement | null,
 ): void {
   ctx.imageSmoothingEnabled = false;
+  const hasBackdrop = !!backdrop?.complete && backdrop.naturalWidth > 0;
 
-  // Checkerboard carpet (culled to the visible viewport).
-  for (let wy = 0; wy < scene.height; wy += TILE) {
-    for (let wx = 0; wx < scene.width; wx += TILE) {
-      const p = w2s(wx, wy);
-      const sz = Math.ceil(TILE * zoom);
-      if (p.x + sz < 0 || p.x > cssW || p.y + sz < 0 || p.y > cssH) continue;
-      const odd = ((wx / TILE) ^ (wy / TILE)) & 1;
-      ctx.fillStyle = odd ? PALETTE.floorB : PALETTE.floorA;
-      ctx.fillRect(Math.round(p.x), Math.round(p.y), sz, sz);
+  if (hasBackdrop) {
+    drawBackdrop(ctx, scene, w2s, zoom, backdrop);
+  } else {
+    // Checkerboard carpet (culled to the visible viewport).
+    for (let wy = 0; wy < scene.height; wy += TILE) {
+      for (let wx = 0; wx < scene.width; wx += TILE) {
+        const p = w2s(wx, wy);
+        const sz = Math.ceil(TILE * zoom);
+        if (p.x + sz < 0 || p.x > cssW || p.y + sz < 0 || p.y > cssH) continue;
+        const odd = ((wx / TILE) ^ (wy / TILE)) & 1;
+        ctx.fillStyle = odd ? PALETTE.floorB : PALETTE.floorA;
+        ctx.fillRect(Math.round(p.x), Math.round(p.y), sz, sz);
+      }
     }
-  }
 
-  // Desks + a monitor glowing faintly in the group's colour.
-  for (const z of scene.zones) {
-    fillRectS(ctx, w2s, zoom, { x: z.desk.x, y: z.desk.y + z.desk.h - 3, w: z.desk.w, h: 3 }, PALETTE.deskEdge);
-    fillRectS(ctx, w2s, zoom, z.desk, PALETTE.deskTop);
-    const mw = Math.max(14, z.desk.w * 0.32);
-    const mon: Rect = { x: z.desk.x + z.desk.w / 2 - mw / 2, y: z.desk.y - z.desk.h * 0.7, w: mw, h: z.desk.h * 0.7 };
-    fillRectS(ctx, w2s, zoom, inflated(mon, 2), PALETTE.monitorFrame);
-    fillRectS(ctx, w2s, zoom, mon, PALETTE.monitorScreen);
-    const screen = w2s(mon.x + 1, mon.y + 1);
-    ctx.fillStyle = z.color;
-    ctx.globalAlpha = 0.5;
-    ctx.fillRect(Math.round(screen.x), Math.round(screen.y), Math.ceil((mon.w - 2) * zoom), Math.ceil((mon.h - 2) * zoom * 0.55));
-    ctx.globalAlpha = 1;
+    // Desks + a monitor glowing faintly in the group's colour.
+    for (const z of scene.zones) {
+      fillRectS(ctx, w2s, zoom, { x: z.desk.x, y: z.desk.y + z.desk.h - 3, w: z.desk.w, h: 3 }, PALETTE.deskEdge);
+      fillRectS(ctx, w2s, zoom, z.desk, PALETTE.deskTop);
+      const mw = Math.max(14, z.desk.w * 0.32);
+      const mon: Rect = { x: z.desk.x + z.desk.w / 2 - mw / 2, y: z.desk.y - z.desk.h * 0.7, w: mw, h: z.desk.h * 0.7 };
+      fillRectS(ctx, w2s, zoom, inflated(mon, 2), PALETTE.monitorFrame);
+      fillRectS(ctx, w2s, zoom, mon, PALETTE.monitorScreen);
+      const screen = w2s(mon.x + 1, mon.y + 1);
+      ctx.fillStyle = z.color;
+      ctx.globalAlpha = 0.5;
+      ctx.fillRect(Math.round(screen.x), Math.round(screen.y), Math.ceil((mon.w - 2) * zoom), Math.ceil((mon.h - 2) * zoom * 0.55));
+      ctx.globalAlpha = 1;
+    }
   }
 
   // Central situation board.
   const bf = inflated(scene.board, 6);
+  ctx.globalAlpha = hasBackdrop ? 0.9 : 1;
   fillRectS(ctx, w2s, zoom, bf, PALETTE.boardFrame);
+  ctx.globalAlpha = hasBackdrop ? 0.92 : 1;
   fillRectS(ctx, w2s, zoom, scene.board, PALETTE.boardScreen);
+  ctx.globalAlpha = 1;
 
   const tl = w2s(scene.board.x, scene.board.y);
   const bw = scene.board.w * zoom;
@@ -169,13 +216,31 @@ export function drawOffice(
   const pad = Math.max(8, 12 * zoom);
   ctx.fillStyle = PALETTE.boardDim;
   ctx.font = `600 ${Math.max(9, Math.round(11 * zoom))}px 'Geist Variable', ui-sans-serif, system-ui, sans-serif`;
-  ctx.fillText('SITUATION BOARD', tl.x + pad, tl.y + pad);
+  ctx.fillText('LIVE MARKET CONTEXT', tl.x + pad, tl.y + pad);
   ctx.fillStyle = PALETTE.boardInk;
-  const titleSize = Math.max(12, Math.round(15 * zoom));
+  const titleSize = Math.max(12, Math.round(16 * zoom));
   ctx.font = `600 ${titleSize}px 'Geist Variable', ui-sans-serif, system-ui, sans-serif`;
-  wrapText(ctx, board.title, tl.x + pad, tl.y + pad + titleSize + 4, bw - pad * 2, titleSize + 3, 3);
+  wrapText(ctx, board.title, tl.x + pad, tl.y + pad + titleSize + 2, bw - pad * 2, titleSize + 3, 2);
+
+  const phaseY = tl.y + pad + titleSize * 2 + 12 * zoom;
+  ctx.fillStyle = PALETTE.blue;
+  ctx.font = `700 ${Math.max(9, Math.round(11 * zoom))}px 'Geist Variable', ui-sans-serif, system-ui, sans-serif`;
+  ctx.fillText(board.phase.toUpperCase(), tl.x + pad, phaseY);
+
+  const summaryY = phaseY + Math.max(14, 16 * zoom);
+  ctx.fillStyle = PALETTE.boardInk;
+  ctx.font = `500 ${Math.max(10, Math.round(12 * zoom))}px 'Geist Variable', ui-sans-serif, system-ui, sans-serif`;
+  wrapText(ctx, board.summary, tl.x + pad, summaryY, bw - pad * 2, Math.max(14, 16 * zoom), 2);
+
+  const detailY = summaryY + Math.max(34, 38 * zoom);
+  ctx.fillStyle = PALETTE.boardDim;
+  ctx.font = `500 ${Math.max(9, Math.round(10 * zoom))}px 'Geist Variable', ui-sans-serif, system-ui, sans-serif`;
+  board.details.slice(0, 3).forEach((line, i) => {
+    ctx.fillText(`- ${line}`, tl.x + pad, detailY + i * Math.max(13, 15 * zoom));
+  });
+
   if (board.metric) {
-    const my = tl.y + bh - pad - Math.max(20, 26 * zoom);
+    const my = tl.y + bh - pad - Math.max(20, 24 * zoom);
     ctx.fillStyle = PALETTE.boardDim;
     ctx.font = `500 ${Math.max(9, Math.round(10 * zoom))}px 'Geist Variable', ui-sans-serif, system-ui, sans-serif`;
     ctx.fillText(board.metric.label.toUpperCase(), tl.x + pad, my);

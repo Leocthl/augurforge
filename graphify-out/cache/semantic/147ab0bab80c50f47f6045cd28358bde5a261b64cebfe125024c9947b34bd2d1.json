@@ -1,0 +1,1 @@
+{"nodes": [{"id": "person_a_plan_md", "label": "Andreas Spec: Simulation Engine + Market Sandbox", "file_type": "document", "source_file": "plans/PERSON_A_PLAN.md"}], "edges": [{"source": "person_a_plan_md", "target": "sample_image_png", "relation": "references", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "plans/PERSON_A_PLAN.md"}], "hyperedges": []}

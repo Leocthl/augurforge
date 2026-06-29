@@ -10,6 +10,9 @@ export type NodeRole =
   | 'input'
   | 'param'
   | 'model'
+  | 'driver'
+  | 'evidence'
+  | 'metric'
   | 'risk-flag'
   | 'insight';
 
@@ -48,6 +51,9 @@ export const ROLE_COLOR: Record<NodeRole, string> = {
   explainer: '#4ade80',
   param: '#7dd3fc',
   model: '#818cf8',
+  driver: '#facc15',
+  evidence: '#94a3b8',
+  metric: '#67e8f9',
   'risk-flag': '#fb7185',
   insight: '#86efac',
 };
@@ -75,6 +81,9 @@ export const EMBED_ROLE_COLOR: Record<NodeRole, string> = {
   explainer: '#46c08a',
   param: '#8fbdf7',
   model: '#5f97ef',
+  driver: '#d4a72c',
+  evidence: '#8d9aae',
+  metric: '#4fb7cf',
   'risk-flag': '#e06857',
   insight: '#46c08a',
 };
