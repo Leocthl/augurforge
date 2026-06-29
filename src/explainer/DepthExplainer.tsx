@@ -13,11 +13,13 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AgentEvent, OnEvent } from './types';
-import { applyEvent, initReasoning, type ReasoningState } from './reasoningGraph';
+import { applyEvent, agentForNode, initReasoning, type ReasoningState } from './reasoningGraph';
 import { mockEventSource, type EventSource } from './eventSource';
 import { realPipelineSource, type Depth } from './liveSource';
 import { useClipRecorder } from './useClipRecorder';
 import { ThinkingGraph } from './ThinkingGraph';
+import { CascadeTranscript } from './CascadeTranscript';
+import type { AgentId } from './types';
 
 type Mode = 'mock' | 'real';
 
@@ -32,6 +34,7 @@ export function DepthExplainer({ source }: Props) {
   const [started, setStarted] = useState(false);
   const [mode, setMode] = useState<Mode>('mock');
   const [depth, setDepth] = useState<Depth>('entry');
+  const [focused, setFocused] = useState<AgentId | null>(null);
   const [size, setSize] = useState({ w: 800, h: 520 });
   const wrapRef = useRef<HTMLDivElement>(null);
   const stopRef = useRef<null | (() => void)>(null);
@@ -77,13 +80,17 @@ export function DepthExplainer({ source }: Props) {
     else if (canvasRef.current) recorder.start(canvasRef.current);
   }, [recorder]);
 
-  const captionList = Object.values(state.captions);
-  const activeCaption = state.active ? state.captions[state.active] : captionList[captionList.length - 1];
-
   return (
     <div className="explainer-root">
       <div className="explainer-graph" ref={wrapRef}>
-        <ThinkingGraph data={state.data} width={size.w} height={size.h} onCanvas={onCanvas} />
+        <ThinkingGraph
+          data={state.data}
+          width={size.w}
+          height={size.h}
+          variant="showcase"
+          onCanvas={onCanvas}
+          onNodeClick={(id) => setFocused(agentForNode(id))}
+        />
       </div>
 
       <div className="explainer-controls">
@@ -136,8 +143,13 @@ export function DepthExplainer({ source }: Props) {
           <button className="explainer-replay" onClick={run}>{started ? 'Replay' : 'Run'}</button>
         </div>
         <div className="explainer-caption">
-          {state.active && <span className="explainer-active">{state.active}</span>}
-          <span className="explainer-text">{activeCaption || 'Gemma is thinking…'}</span>
+          <CascadeTranscript
+            beats={state.beats}
+            activeAgent={state.active}
+            focusedAgent={focused}
+            variant="showcase"
+            onSelect={setFocused}
+          />
         </div>
       </div>
     </div>
