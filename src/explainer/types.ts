@@ -99,6 +99,30 @@ export interface SentenceRef {
   nodeIds: string[];
 }
 
+export type StakeholderRoleId = 'executive' | 'finance' | 'risk-compliance' | 'marketing' | 'hr' | 'operations';
+export type RoleRiskLevel = 'low' | 'medium' | 'high' | 'critical';
+
+export interface RoleImpactMetric {
+  label: string;
+  value: string;
+  weight: number;
+}
+
+export interface RoleImpactResult {
+  roleId: StakeholderRoleId;
+  title: string;
+  impactScore: number;
+  riskLevel: RoleRiskLevel;
+  brief: string;
+  concerns: string[];
+  questions: string[];
+  metrics: RoleImpactMetric[];
+  simulated?: boolean;
+  error?: string;
+}
+
+export type RoleImpactStatus = 'idle' | 'loading' | 'done' | 'error';
+
 /** Restrained, design-token-aligned palette for the embedded mini-graph (hex approximations of
  *  the OKLCH tokens in src/index.css: --blue family / --amber / --green / --red). Three.Color
  *  cannot parse oklch(), so concrete hex values are used. */
