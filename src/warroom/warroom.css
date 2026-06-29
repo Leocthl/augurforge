@@ -1,0 +1,47 @@
+.warroom-root {
+  position: relative; width: 100%; height: 100%; overflow: hidden; display: flex; flex-direction: column;
+  font-family: "Inter", system-ui, sans-serif; color: #e6edf6;
+  background:
+    radial-gradient(1100px 520px at 50% -8%, rgba(56,189,248,0.10), transparent 60%),
+    linear-gradient(180deg, #0a1018, #06090f 70%);
+}
+/* the situation board */
+.warroom-board {
+  display: flex; align-items: center; gap: 14px; padding: 12px 22px;
+  border-bottom: 1px solid rgba(120,150,190,0.18);
+  background: linear-gradient(180deg, rgba(17,28,48,0.9), rgba(11,19,34,0.6)); backdrop-filter: blur(6px);
+}
+.warroom-badge { font-size: 12px; font-weight: 700; color: #04121f; background: linear-gradient(135deg,#38bdf8,#6366f1); padding: 4px 12px; border-radius: 999px; }
+.warroom-stat { font-size: 12px; color: #8aa0bd; font-variant-numeric: tabular-nums; }
+.warroom-spacer { flex: 1; }
+.warroom-toggle, .warroom-replay { border: 1px solid #2b4a6f; background: #0b1322; color: #e6edf6; border-radius: 8px; padding: 6px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.warroom-toggle:hover, .warroom-replay:hover { border-color: #38bdf8; }
+/* the floor: a perspective grid room */
+.warroom-floor {
+  flex: 1; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: center; gap: 30px 44px;
+  padding: 40px 28px 60px; align-content: center;
+  background:
+    repeating-linear-gradient(90deg, rgba(56,189,248,0.05) 0 1px, transparent 1px 64px),
+    repeating-linear-gradient(0deg, rgba(56,189,248,0.05) 0 1px, transparent 1px 64px);
+}
+.warroom-agent { position: relative; display: flex; flex-direction: column; align-items: center; width: 150px; transition: opacity 0.3s ease; }
+.warroom-agent.idle { opacity: 0.38; }
+.warroom-agent.thinking { opacity: 1; }
+.warroom-agent.done { opacity: 0.92; }
+/* thought bubble */
+.warroom-bubble {
+  position: relative; min-height: 30px; max-width: 190px; margin-bottom: 14px; padding: 9px 12px;
+  background: rgba(233,237,246,0.96); color: #0b1322; border-radius: 12px; font-size: 12.5px; line-height: 1.4;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.45); opacity: 0; transform: translateY(6px) scale(0.96);
+  transition: opacity 0.25s ease, transform 0.25s ease; pointer-events: none;
+}
+.warroom-bubble.show { opacity: 1; transform: none; }
+.warroom-bubble::after { content: ""; position: absolute; left: 50%; bottom: -7px; transform: translateX(-50%); border: 7px solid transparent; border-top-color: rgba(233,237,246,0.96); border-bottom: 0; }
+.warroom-caret { display: inline-block; width: 6px; height: 13px; background: #2563eb; margin-left: 2px; vertical-align: text-bottom; animation: wr-blink 1s steps(2) infinite; }
+@keyframes wr-blink { 50% { opacity: 0; } }
+/* stickman states */
+.stickman { filter: drop-shadow(0 0 0 transparent); transition: filter 0.3s ease; }
+.stickman-thinking { animation: wr-bob 1.1s ease-in-out infinite; filter: drop-shadow(0 0 10px currentColor); }
+@keyframes wr-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+.warroom-desk { width: 96px; height: 8px; margin-top: -2px; border-radius: 3px; background: linear-gradient(180deg, #1e2a3a, #0d1623); box-shadow: 0 6px 16px rgba(0,0,0,0.5); }
+.warroom-label { margin-top: 8px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.02em; }
