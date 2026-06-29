@@ -1,31 +1,32 @@
 /**
- * DepthExplainer.tsx — the mountable feature. [OWNER: B / explainer]
- * Runs an EventSource, reduces the stream into a growing graph, and overlays the streamed caption +
- * Cerebras TTFT/tokens-sec HUD. The graph assembles part-by-part -> speed felt.
- *
- * Controls:
- *  - Source: "Mock cascade" (offline canned replay, default) vs "Real pipeline" (the actual
- *    runPipeline + runTweak agent cascade — streams real events offline, live with a key).
- *  - Depth: entry / expert — re-runs at that depth (passed into runTweak live; varies mock captions).
- *  - Record clip: captures the graph <canvas> to a downloadable .webm for the demo video.
- *
- * An explicit `source` prop overrides the source toggle (kept for embedding/tests).
+ * DepthExplainer.tsx - standalone explainer feature mount.
+ * Owns the event stream, graph reducer, source mode, clip recording, and stakeholder role queue.
+ * The visual shell lives in ExplainerWorkbench so the standalone route can evolve without touching
+ * the embedded ReasoningPanel used by the main app Inspector.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AgentEvent, OnEvent } from './types';
-import { applyEvent, agentForNode, initReasoning, type ReasoningState } from './reasoningGraph';
-import { mockEventSource, type EventSource } from './eventSource';
-import { realPipelineSource, type Depth } from './liveSource';
-import { useClipRecorder } from './useClipRecorder';
-import { ThinkingGraph } from './ThinkingGraph';
-import { CascadeTranscript } from './CascadeTranscript';
-import type { AgentId } from './types';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   pipelineInputFromSession,
   readAugurForgeSession,
   subscribeAugurForgeSession,
   type AugurForgeSessionSnapshot,
 } from '../core/sessionContext';
+import { mockEventSource, type EventSource } from './eventSource';
+import { ExplainerWorkbench } from './ExplainerWorkbench';
+import { realPipelineSource, type Depth } from './liveSource';
+import { applyEvent, initReasoning, type ReasoningState } from './reasoningGraph';
+import { ROLE_DEFS, runMockRoleAnalysis, runRoleAnalysis } from './roleAnalysis';
+import type {
+  AgentEvent,
+  AgentId,
+  GraphSelection,
+  OnEvent,
+  RoleImpactResult,
+  RoleImpactStatus,
+  SentenceRef,
+  StakeholderRoleId,
+} from './types';
+import { useClipRecorder } from './useClipRecorder';
 
 type Mode = 'mock' | 'real';
 
@@ -34,13 +35,26 @@ interface Props {
   source?: EventSource;
 }
 
+function initialRoleStatuses(): Record<StakeholderRoleId, RoleImpactStatus> {
+  return Object.fromEntries(ROLE_DEFS.map((role) => [role.id, 'idle'])) as Record<
+    StakeholderRoleId,
+    RoleImpactStatus
+  >;
+}
+
 export function DepthExplainer({ source }: Props) {
   const [state, setState] = useState<ReasoningState>(() => initReasoning(performance.now()));
   const [latest, setLatest] = useState<{ ttftMs?: number; tokensPerSec?: number }>({});
   const [started, setStarted] = useState(false);
   const [mode, setMode] = useState<Mode>('mock');
   const [depth, setDepth] = useState<Depth>('entry');
-  const [focused, setFocused] = useState<AgentId | null>(null);
+  const [selected, setSelected] = useState<GraphSelection>({ nodeId: null, sentenceId: null });
+  const [activeRole, setActiveRole] = useState<StakeholderRoleId>('executive');
+  const [roleStatuses, setRoleStatuses] = useState<Record<StakeholderRoleId, RoleImpactStatus>>(() =>
+    initialRoleStatuses(),
+  );
+  const [roleResults, setRoleResults] = useState<Partial<Record<StakeholderRoleId, RoleImpactResult>>>({});
+  const [runId, setRunId] = useState(0);
   const [size, setSize] = useState({ w: 800, h: 520 });
   const [session, setSession] = useState<AugurForgeSessionSnapshot | null>(() => readAugurForgeSession());
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -82,8 +96,16 @@ export function DepthExplainer({ source }: Props) {
     stopRef.current?.();
     setState(initReasoning(performance.now()));
     setLatest({});
+    setSelected({ nodeId: null, sentenceId: null });
+    setRoleResults({});
+    setRoleStatuses(initialRoleStatuses());
+    setRunId((id) => id + 1);
     setStarted(true);
-    const src = source ?? (mode === 'real' ? realPipelineSource(depth, pipelineInputFromSession(sessionRef.current)) : mockEventSource({ depth }));
+    const src =
+      source ??
+      (mode === 'real'
+        ? realPipelineSource(depth, pipelineInputFromSession(sessionRef.current))
+        : mockEventSource({ depth }));
     stopRef.current = src.start(onEvent);
   }, [source, mode, depth, onEvent]);
 
@@ -97,79 +119,89 @@ export function DepthExplainer({ source }: Props) {
     else if (canvasRef.current) recorder.start(canvasRef.current);
   }, [recorder]);
 
+  const selectNode = useCallback((nodeId: string) => {
+    setSelected({ nodeId, sentenceId: null });
+  }, []);
+
+  const selectAgent = useCallback((agent: AgentId) => {
+    setSelected({ nodeId: agent, sentenceId: null });
+  }, []);
+
+  const selectSentence = useCallback((sentence: SentenceRef) => {
+    setSelected({ nodeId: null, sentenceId: sentence.id });
+  }, []);
+
+  const roleSessionSummary = useMemo(() => {
+    const parts = [
+      session?.title,
+      session?.latestSummary,
+      ...(session?.metrics ?? []).map((metric) => `${metric.label}: ${metric.value}`),
+      session?.input?.intent ? `Intent: ${session.input.intent}` : undefined,
+    ].filter((part): part is string => Boolean(part));
+    return parts.join('\n');
+  }, [session]);
+
+  useEffect(() => {
+    const explainerDone = state.beats.some((beat) => beat.agent === 'explainer' && beat.status === 'done');
+    if (!explainerDone) return;
+
+    const controller = new AbortController();
+    let cancelled = false;
+
+    const queue = async () => {
+      for (const role of ROLE_DEFS) {
+        if (cancelled) return;
+        setRoleStatuses((prev) => ({ ...prev, [role.id]: 'loading' }));
+        try {
+          const result =
+            mode === 'real'
+              ? await runRoleAnalysis(role.id, state, roleSessionSummary, controller.signal)
+              : await runMockRoleAnalysis(role.id, state, roleSessionSummary);
+          if (cancelled) return;
+          setRoleResults((prev) => ({ ...prev, [role.id]: result }));
+          setRoleStatuses((prev) => ({ ...prev, [role.id]: result.error ? 'error' : 'done' }));
+        } catch (err) {
+          if (cancelled || (err instanceof Error && err.name === 'AbortError')) return;
+          setRoleStatuses((prev) => ({ ...prev, [role.id]: 'error' }));
+        }
+      }
+    };
+
+    queue();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [mode, roleSessionSummary, runId, state]);
+
   return (
     <div className="explainer-root">
-      <div className="explainer-graph" ref={wrapRef}>
-        <ThinkingGraph
-          data={state.data}
-          width={size.w}
-          height={size.h}
-          variant="showcase"
-          onCanvas={onCanvas}
-          onNodeClick={(id) => setFocused(agentForNode(id))}
-        />
-      </div>
-
-      <div className="explainer-controls">
-        {!source && (
-          <div className="explainer-seg" role="group" aria-label="Source">
-            <button
-              className={`explainer-seg-btn${mode === 'mock' ? ' is-active' : ''}`}
-              onClick={() => setMode('mock')}
-            >
-              Mock cascade
-            </button>
-            <button
-              className={`explainer-seg-btn${mode === 'real' ? ' is-active' : ''}`}
-              onClick={() => setMode('real')}
-            >
-              Real pipeline
-            </button>
-          </div>
-        )}
-        <div className="explainer-seg" role="group" aria-label="Depth">
-          <button
-            className={`explainer-seg-btn${depth === 'entry' ? ' is-active' : ''}`}
-            onClick={() => setDepth('entry')}
-          >
-            Entry
-          </button>
-          <button
-            className={`explainer-seg-btn${depth === 'expert' ? ' is-active' : ''}`}
-            onClick={() => setDepth('expert')}
-          >
-            Expert
-          </button>
-        </div>
-        <button
-          className={`explainer-record${recorder.recording ? ' is-recording' : ''}`}
-          onClick={toggleRecording}
-          disabled={!recorder.supported}
-          title={recorder.supported ? 'Record the graph to a .webm clip' : 'Recording not supported in this browser'}
-        >
-          {recorder.recording ? '● Stop' : 'Record clip'}
-        </button>
-      </div>
-
-      <div className="explainer-hud">
-        <div className="explainer-hud-row">
-          <span className="explainer-badge">Gemma 4 · Cerebras</span>
-          <span className="explainer-stat">TTFT {latest.ttftMs != null ? `${latest.ttftMs} ms` : '—'}</span>
-          <span className="explainer-stat">{latest.tokensPerSec != null ? `${Math.round(latest.tokensPerSec)} tok/s` : ''}</span>
-          <span className="explainer-stat">{state.data.nodes.length} nodes</span>
-          {session?.title && <span className="explainer-stat">{session.title}</span>}
-          <button className="explainer-replay" onClick={run}>{started ? 'Replay' : 'Run'}</button>
-        </div>
-        <div className="explainer-caption">
-          <CascadeTranscript
-            beats={state.beats}
-            activeAgent={state.active}
-            focusedAgent={focused}
-            variant="showcase"
-            onSelect={setFocused}
-          />
-        </div>
-      </div>
+      <ExplainerWorkbench
+        state={state}
+        latest={latest}
+        started={started}
+        mode={mode}
+        depth={depth}
+        session={session}
+        size={size}
+        graphRef={wrapRef}
+        source={source}
+        selected={selected}
+        activeRole={activeRole}
+        roleStatuses={roleStatuses}
+        roleResults={roleResults}
+        recorderSupported={recorder.supported}
+        recording={recorder.recording}
+        onCanvas={onCanvas}
+        onRun={run}
+        onSetMode={setMode}
+        onSetDepth={setDepth}
+        onSelectNode={selectNode}
+        onSelectAgent={selectAgent}
+        onSelectSentence={selectSentence}
+        onSelectRole={setActiveRole}
+        onToggleRecording={toggleRecording}
+      />
     </div>
   );
 }

@@ -1,7 +1,12 @@
 export { DepthExplainer } from './DepthExplainer';
+export { ExplainerWorkbench } from './ExplainerWorkbench';
 export { ThinkingGraph } from './ThinkingGraph';
+export { TranscriptStrip } from './TranscriptStrip';
 export { CascadeTranscript } from './CascadeTranscript';
 export { ReasoningPanel } from './ReasoningPanel';
+export { GroupInspector } from './GroupInspector';
+export { RoleImpactPanel } from './RoleImpactPanel';
+export { SourceReceiptPanel } from './SourceReceiptPanel';
 export { mockEventSource, liveEventSource, type EventSource, type MockDepth } from './eventSource';
 export { realPipelineSource, type Depth } from './liveSource';
 export { useClipRecorder, type ClipRecorder } from './useClipRecorder';
