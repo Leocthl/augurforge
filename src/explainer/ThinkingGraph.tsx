@@ -43,6 +43,8 @@ interface Props {
   width: number;
   height: number;
   variant?: GraphVariant;
+  selectedNodeId?: string | null;
+  highlightedNodeIds?: string[];
   /** Receives the WebGL <canvas> once mounted (used by the clip recorder). */
   onCanvas?: (canvas: HTMLCanvasElement | null) => void;
   /** Fired with a node id when a node is clicked (drives transcript focus). */
@@ -61,7 +63,16 @@ function nodeLabelObject(node: GNode, color: string, floor: number, ceil: number
   return sprite;
 }
 
-export function ThinkingGraph({ data, width, height, variant = 'showcase', onCanvas, onNodeClick }: Props) {
+export function ThinkingGraph({
+  data,
+  width,
+  height,
+  variant = 'showcase',
+  selectedNodeId = null,
+  highlightedNodeIds,
+  onCanvas,
+  onNodeClick,
+}: Props) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fgRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -69,6 +80,14 @@ export function ThinkingGraph({ data, width, height, variant = 'showcase', onCan
   const reduced = useMemo(prefersReducedMotion, []);
   const v = VARIANT[variant];
   const palette = variant === 'embed' ? EMBED_ROLE_COLOR : ROLE_COLOR;
+  const highlighted = useMemo(() => new Set(highlightedNodeIds ?? []), [highlightedNodeIds]);
+  const hasHighlight = highlighted.size > 0 || !!selectedNodeId;
+
+  const nodeVisualColor = (node: GNode): string => {
+    if (node.id === selectedNodeId) return '#ffffff';
+    if (hasHighlight && !highlighted.has(node.id)) return '#3b4655';
+    return palette[node.role];
+  };
 
   useEffect(() => {
     const fg = fgRef.current;
@@ -117,18 +136,21 @@ export function ThinkingGraph({ data, width, height, variant = 'showcase', onCan
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       nodeVal={(n: any) => n.size}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      nodeColor={(n: any) => palette[(n as GNode).role]}
-      nodeOpacity={0.95}
+      nodeColor={(n: any) => nodeVisualColor(n as GNode)}
+      nodeOpacity={hasHighlight ? 0.86 : 0.95}
       nodeResolution={16}
       nodeThreeObjectExtend
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      nodeThreeObject={(n: any) => nodeLabelObject(n as GNode, palette[(n as GNode).role], v.labelFloor, v.labelCeil)}
+      nodeThreeObject={(n: any) => {
+        const node = n as GNode;
+        return nodeLabelObject(node, nodeVisualColor(node), v.labelFloor, v.labelCeil);
+      }}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       nodeLabel={(n: any) => n.label}
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       onNodeClick={(n: any) => onNodeClick?.((n as GNode).id)}
       linkColor={() => (variant === 'embed' ? '#33455c' : '#2b4a6f')}
-      linkOpacity={0.55}
+      linkOpacity={hasHighlight ? 0.38 : 0.55}
       linkWidth={0.6}
       linkDirectionalParticles={reduced ? 0 : 2}
       linkDirectionalParticleWidth={1.6}

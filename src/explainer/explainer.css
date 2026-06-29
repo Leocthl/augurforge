@@ -37,6 +37,18 @@
 .cascade-transcript.showcase .cascade-text { font-size: 14px; }
 .cascade-transcript.showcase .cascade-beat { padding: 6px 8px; }
 
+/* Sentence-aware transcript for the standalone explainer workbench. */
+.transcript-strip { display: flex; flex-direction: column; gap: 6px; }
+.transcript-strip.embed { gap: 4px; }
+.transcript-sentence { display: grid; grid-template-columns: minmax(76px, 88px) minmax(0, 1fr); gap: 10px; width: 100%; border: 1px solid transparent; border-radius: 8px; background: transparent; color: #c6d3e4; padding: 7px 8px; font: inherit; text-align: left; cursor: pointer; }
+.transcript-sentence:hover { background: rgba(120, 150, 190, 0.10); }
+.transcript-sentence:focus-visible { outline: 2px solid #4f8ff0; outline-offset: 2px; }
+.transcript-sentence.is-active { border-color: rgba(79, 143, 240, 0.58); background: rgba(79, 143, 240, 0.15); color: #e6edf6; }
+.transcript-sentence span { color: #9fb3cf; font-size: 11px; font-weight: 700; line-height: 1.35; }
+.transcript-sentence strong { min-width: 0; color: inherit; font-size: 13px; font-weight: 520; line-height: 1.42; overflow-wrap: anywhere; }
+.transcript-strip.embed .transcript-sentence { grid-template-columns: minmax(70px, 82px) minmax(0, 1fr); gap: 8px; padding: 6px 7px; }
+.transcript-strip.embed .transcript-sentence strong { font-size: 12.5px; }
+
 /* --- Embedded reasoning panel (workbench right rail) --- */
 .reasoning-panel { display: flex; flex-direction: column; gap: 10px; }
 .reasoning-stage { position: relative; width: 100%; height: 210px; border-radius: 8px; overflow: hidden; background: #11151c; border: 1px solid rgba(120, 150, 190, 0.14); }
