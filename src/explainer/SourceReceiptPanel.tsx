@@ -75,7 +75,7 @@ export function SourceReceiptPanel({ session, mode, onReplaceInput }: Props) {
 
 function attachmentMeta(attachment: SessionAttachment): string {
   const parts = [attachment.kind, formatBytes(attachment.size)].filter(Boolean);
-  return parts.join(' · ');
+  return parts.join(' / ');
 }
 
 function formatBytes(size: number): string {
