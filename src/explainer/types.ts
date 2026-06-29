@@ -68,6 +68,35 @@ export interface ReasoningBeat {
   status: 'streaming' | 'done' | 'error';
 }
 
+export type GraphGroupId = 'structure' | 'modeling' | 'sensitivity' | 'risk' | 'explanation' | 'evidence' | 'metrics' | 'input';
+
+export interface GraphGroupInfo {
+  id: GraphGroupId;
+  label: string;
+  summary: string;
+  color: string;
+  roles: NodeRole[];
+}
+
+export interface GraphSelection {
+  nodeId: string | null;
+  sentenceId: string | null;
+}
+
+export interface RelatedNode {
+  id: string;
+  label: string;
+  role: NodeRole;
+  relation: 'selected' | 'upstream' | 'downstream' | 'same-group' | 'sentence-evidence';
+}
+
+export interface SentenceRef {
+  id: string;
+  agent: AgentId;
+  text: string;
+  nodeIds: string[];
+}
+
 /** Restrained, design-token-aligned palette for the embedded mini-graph (hex approximations of
  *  the OKLCH tokens in src/index.css: --blue family / --amber / --green / --red). Three.Color
  *  cannot parse oklch(), so concrete hex values are used. */
