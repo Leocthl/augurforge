@@ -19,7 +19,9 @@ import {
 
 const SYSTEM =
   'You are AugurForge Visualizer. Given a validated model spec, design the dashboard labels, ' +
-  'view choices, and two-depth explainer. Use 3d only when the renderer supports it. ' +
+  'view choices, and two-depth explainer. Use 3d only when the renderer supports a genuine field ' +
+  'or surface such as time x value x probability density, a volatility surface, or a price/yield surface. ' +
+  'Keep curve, fan, histogram, and compartment models 2d. ' +
   'For generated:black-scholes and generated:sir use 2d only. Return only strict JSON DashboardSpec.';
 
 const SLIDER_SCHEMA = objectSchema(

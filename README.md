@@ -16,7 +16,7 @@ npm run dev
 ```
 The whole experience runs offline on mock data: the streaming agent cascade, the Monte Carlo hero
 in 2D + 3D, the sigma/mu/horizon sliders, the Animate toggle, the generated Black-Scholes sandbox,
-and the Cerebras-vs-baseline speed race.
+and the Cerebras-vs-OpenRouter speed race.
 
 ## Live mode (Gemma-4-31b on Cerebras)
 ```bash
@@ -36,9 +36,15 @@ npm run dev:live         # runs Vite + the key-proxy together
 | `CEREBRAS_BASE_URL` | proxy only | default `https://api.cerebras.ai/v1` |
 | `CEREBRAS_MODEL` | proxy only | `gemma-4-31b` |
 | `PROXY_PORT` | proxy only | default `8787` |
-| `BASELINE_API_KEY` | proxy only | optional comparator for the speed race |
-| `BASELINE_BASE_URL` | proxy only | optional OpenAI-compatible baseline URL |
-| `BASELINE_MODEL` | proxy only | optional baseline model name |
+| `BASELINE_API_KEY` | proxy only | OpenRouter key for the speed race; blank = simulated comparator |
+| `BASELINE_BASE_URL` | proxy only | comparator base URL — default `https://openrouter.ai/api/v1` |
+| `BASELINE_MODEL` | proxy only | OpenRouter Gemma 4 slug (run the **same** model for a fair race) |
+| `BASELINE_LABEL` | proxy only | comparator name shown on the HUD — default `OpenRouter · Gemma 4` |
+| `OPENROUTER_REFERER` / `OPENROUTER_TITLE` | proxy only | optional OpenRouter attribution headers |
+
+> **Cerebras vs OpenRouter race.** The HUD races the same Gemma 4 prompt at Cerebras and at OpenRouter
+> in parallel, reporting **TTFT · tokens/s · total** for both. With `BASELINE_API_KEY` set it's a real
+> head-to-head; blank, the comparator runs on representative mock timing and is labeled `(sim)`.
 
 ## Scripts
 | Script | Does |

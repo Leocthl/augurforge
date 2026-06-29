@@ -29,7 +29,11 @@ export interface ChatMessage {
   content: string | ContentPart[];
 }
 
-/** Which model serves a call — used by the speed race (baseline is a slow GPU stand-in). */
+/**
+ * Which backend serves a call — used by the speed race. 'baseline' is the comparator,
+ * configured (via the proxy's BASELINE_* env) to run the SAME Gemma 4 on OpenRouter, so
+ * the race isolates inference hardware: Cerebras vs commodity GPUs.
+ */
 export type Provider = 'cerebras' | 'baseline';
 
 export interface ChatOpts {
@@ -54,6 +58,8 @@ export interface ChatResult {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   json?: any;
   timeInfo: TimeInfo;
+  /** True when these numbers came from mock timing (offline, or a live call that fell back). */
+  simulated?: boolean;
 }
 
 export type OnToken = (t: string) => void;
@@ -103,9 +109,11 @@ export async function chat(opts: ChatOpts, onToken?: OnToken): Promise<ChatResul
 // ---------------------------------------------------------------------------
 
 function mockProfile(provider: Provider): { ttftMs: number; tokensPerSec: number } {
-  // Cerebras is the hero: tiny TTFT, very high throughput. Baseline = laggy GPU.
+  // Cerebras is the hero: tiny TTFT, wafer-scale throughput. The baseline mirrors a
+  // representative OpenRouter Gemma 4 deployment on commodity GPUs (not a strawman) —
+  // so the offline rehearsal previews a credible, honest live margin.
   return provider === 'baseline'
-    ? { ttftMs: 850, tokensPerSec: 28 }
+    ? { ttftMs: 480, tokensPerSec: 65 }
     : { ttftMs: 110, tokensPerSec: 1700 };
 }
 
@@ -135,6 +143,7 @@ async function mockChat(opts: ChatOpts, onToken?: OnToken): Promise<ChatResult> 
     text,
     json: opts.mock?.json,
     timeInfo: { ttftMs, tokensPerSec, totalTokens, totalMs },
+    simulated: true,
   };
 }
 
@@ -234,6 +243,16 @@ async function parseSseStream(
 
   const timeInfo = readTimeInfo(lastChunk, start);
   if (timeInfo.ttftMs === undefined) timeInfo.ttftMs = ttftMs;
+  // Comparators without Cerebras-style `time_info` (e.g. OpenRouter) leave tokens/sec blank.
+  // Derive a real, client-measured rate from the streamed body over the generation window
+  // so the head-to-head HUD reports all three axes (TTFT · tokens/s · total) for both sides.
+  if (timeInfo.totalTokens === undefined && text) {
+    timeInfo.totalTokens = Math.max(1, Math.round(text.length / 4));
+  }
+  if (timeInfo.tokensPerSec === undefined && timeInfo.totalTokens) {
+    const genMs = Math.max(1, (timeInfo.totalMs ?? Date.now() - start) - (timeInfo.ttftMs ?? 0));
+    timeInfo.tokensPerSec = Math.round((timeInfo.totalTokens / genMs) * 1000);
+  }
   return { text, json: parseJsonLoose(text), timeInfo };
 }
 

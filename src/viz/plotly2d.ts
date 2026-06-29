@@ -10,15 +10,15 @@ import type { PlotData, Layout } from 'plotly.js-dist-min';
 import type { Theme } from '../core/contract';
 
 export const PALETTE = {
-  axis: '#8aa0bd',
-  grid: 'rgba(120,150,190,0.14)',
-  cone95: 'rgba(56,189,248,0.14)',
-  cone50: 'rgba(56,189,248,0.30)',
-  median: '#38bdf8',
+  axis: '#8b95a7',
+  grid: 'rgba(139,149,167,0.14)',
+  cone95: 'rgba(96,165,250,0.13)',
+  cone50: 'rgba(96,165,250,0.26)',
+  median: '#60a5fa',
   sample: 'rgba(148,163,184,0.35)',
-  bar: 'rgba(56,189,248,0.65)',
-  barrier: '#fb7185',
-  accent: '#fbbf24',
+  bar: 'rgba(96,165,250,0.58)',
+  barrier: '#8b95a7',
+  accent: '#60a5fa',
 } as const;
 
 export const PLOTLY_CONFIG = { displayModeBar: false, responsive: true } as const;
@@ -29,8 +29,8 @@ export function baseLayout(theme: Theme): Partial<Layout> {
   return {
     paper_bgcolor: theme === 'light' ? '#ffffff' : 'rgba(0,0,0,0)',
     plot_bgcolor: theme === 'light' ? '#f8fafc' : 'rgba(0,0,0,0)',
-    font: { color: font, family: 'Inter, system-ui, sans-serif', size: 12 },
-    margin: { l: 56, r: 16, t: 16, b: 40 },
+    font: { color: font, family: 'Geist Variable, Avenir Next, system-ui, sans-serif', size: 12 },
+    margin: { l: 56, r: 18, t: 66, b: 42 },
     showlegend: false,
     hovermode: 'closest',
     xaxis: {
@@ -80,7 +80,14 @@ export function conePair(
 }
 
 export function medianLine(x: number[], y: number[]): PlotData {
-  return { x, y, mode: 'lines', line: { color: PALETTE.median, width: 2.5 }, name: 'Median' };
+  return {
+    x,
+    y,
+    mode: 'lines',
+    line: { color: PALETTE.median, width: 2.5 },
+    name: 'Median path',
+    hovertemplate: 'year %{x:.1f}<br>median value $%{y:.0f}<extra></extra>',
+  };
 }
 
 /** A few thin sample trajectories for texture (kept small for performance). */
@@ -108,9 +115,10 @@ export function terminalHistogram(values: number[]): PlotData {
     orientation: 'h',
     xaxis: 'x2',
     yaxis: 'y2',
+    name: 'Terminal outcomes',
     marker: { color: PALETTE.bar },
     nbinsy: 36,
-    hovertemplate: 'value ~%{y:.0f}<extra></extra>',
+    hovertemplate: 'terminal value $%{y:.0f}<br>frequency %{x}<extra></extra>',
   };
 }
 
@@ -129,7 +137,17 @@ export function barrierShape(x0: number, x1: number, level: number) {
 }
 
 export function mount(el: HTMLElement, traces: PlotData[], layout: Partial<Layout>): Promise<HTMLElement> {
-  return Plotly.react(el, traces, layout, PLOTLY_CONFIG);
+  return Plotly.react(
+    el,
+    traces,
+    {
+      ...layout,
+      autosize: true,
+      width: Math.max(640, Math.round(el.clientWidth || 900)),
+      height: Math.max(360, Math.round(el.clientHeight || 520)),
+    },
+    PLOTLY_CONFIG,
+  );
 }
 
 export function purge(el: HTMLElement): void {

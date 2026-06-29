@@ -137,6 +137,13 @@ function run(params: ParamSet): SimResult {
       losses: sim.losses,
       maxDrawdowns: sim.maxDrawdowns,
       ruinTimes: sim.ruinTimes,
+      ruinProbability: sim.metrics.ruinProbability,
+      var95: sim.metrics.var95,
+      var99: sim.metrics.var99,
+      es95: sim.metrics.es95,
+      medianTerminal: sim.metrics.medianTerminal,
+      maxDrawdownP95: sim.metrics.maxDrawdownP95,
+      medianRuinTime: sim.metrics.medianRuinTime,
       vMin,
       vMax,
       tMax: sim.time[sim.time.length - 1],
@@ -177,6 +184,63 @@ function rawNum(sim: SimResult, key: string, fallback: number): number {
   return typeof v === 'number' ? v : fallback;
 }
 
+function isPresent<T>(value: T | null | undefined): value is T {
+  return value != null;
+}
+
+function lastValue(values: number[]): number | undefined {
+  return values.length ? values[values.length - 1] : undefined;
+}
+
+function percentileAnnotation(text: string, x: number, y: number | undefined) {
+  if (y == null || !Number.isFinite(y)) return null;
+  return {
+    x,
+    y,
+    xref: 'x' as const,
+    yref: 'y' as const,
+    text,
+    showarrow: false,
+    xanchor: 'left' as const,
+    align: 'left' as const,
+    font: { size: 11, color: PALETTE.axis },
+    bgcolor: 'rgba(16,24,38,0.72)',
+    bordercolor: 'rgba(255,255,255,0.12)',
+    borderpad: 3,
+  };
+}
+
+function lossLevelShape(loss: number, s0: number, color: string) {
+  if (!Number.isFinite(loss)) return null;
+  const terminalLevel = s0 * (1 - loss);
+  return {
+    type: 'line' as const,
+    xref: 'paper' as const,
+    yref: 'y2' as const,
+    x0: 0.78,
+    x1: 1,
+    y0: terminalLevel,
+    y1: terminalLevel,
+    line: { color, width: 1.4, dash: 'dot' as const },
+  };
+}
+
+function lossLevelAnnotation(text: string, loss: number, s0: number, color: string) {
+  if (!Number.isFinite(loss)) return null;
+  return {
+    x: 0.995,
+    y: s0 * (1 - loss),
+    xref: 'paper' as const,
+    yref: 'y2' as const,
+    text,
+    showarrow: false,
+    xanchor: 'right' as const,
+    font: { size: 10.5, color },
+    bgcolor: 'rgba(16,24,38,0.7)',
+    borderpad: 2,
+  };
+}
+
 // --- render2D ---------------------------------------------------------------
 
 function render2D(el: HTMLElement, sim: SimResult, opts: RenderOpts): Renderer {
@@ -191,6 +255,10 @@ function render2D(el: HTMLElement, sim: SimResult, opts: RenderOpts): Renderer {
     const vMin = rawNum(s, 'vMin', S0 * 0.4);
     const vMax = rawNum(s, 'vMax', S0 * 1.8);
     const terminal = (s.raw?.terminal as number[]) ?? [];
+    const s0 = rawNum(s, 's0', S0);
+    const barrier = rawNum(s, 'barrier', BARRIER);
+    const var95 = rawNum(s, 'var95', NaN);
+    const es95 = rawNum(s, 'es95', NaN);
 
     const traces: PlotData[] = [
       ...conePair(time, seriesY(s, 'p5'), seriesY(s, 'p95'), PALETTE.cone95),
@@ -202,7 +270,40 @@ function render2D(el: HTMLElement, sim: SimResult, opts: RenderOpts): Renderer {
 
     const layout = baseLayout(opts.theme);
     layout.yaxis = { ...(layout.yaxis as object), range: [vMin, vMax] };
-    layout.shapes = [barrierShape(0, tMax, rawNum(s, 'barrier', BARRIER))];
+    layout.shapes = [
+      barrierShape(0, tMax, barrier),
+      lossLevelShape(var95, s0, PALETTE.accent),
+      lossLevelShape(es95, s0, PALETTE.axis),
+    ].filter(isPresent);
+    layout.annotations = [
+      percentileAnnotation('p95', tMax, lastValue(seriesY(s, 'p95'))),
+      percentileAnnotation('median', tMax, lastValue(seriesY(s, 'p50'))),
+      percentileAnnotation('p5', tMax, lastValue(seriesY(s, 'p5'))),
+      {
+        x: Math.max(0, tMax * 0.02),
+        y: barrier,
+        xref: 'x' as const,
+        yref: 'y' as const,
+        text: `ruin barrier ${fmtMoney(barrier)}`,
+        showarrow: false,
+        xanchor: 'left' as const,
+        yanchor: 'bottom' as const,
+        font: { size: 11, color: PALETTE.barrier },
+        bgcolor: 'rgba(16,24,38,0.74)',
+        borderpad: 3,
+      },
+      {
+        x: 0.89,
+        y: 1.03,
+        xref: 'paper' as const,
+        yref: 'paper' as const,
+        text: 'terminal distribution',
+        showarrow: false,
+        font: { size: 11, color: PALETTE.axis },
+      },
+      lossLevelAnnotation('95% VaR', var95, s0, PALETTE.accent),
+      lossLevelAnnotation('95% ES', es95, s0, PALETTE.axis),
+    ].filter(isPresent);
     if (!animate) layout.xaxis = { ...(layout.xaxis as object), range: [0, tMax] };
 
     mount(el, traces, layout).catch((err) => console.error('[monte-carlo render2D] Plotly error:', err));

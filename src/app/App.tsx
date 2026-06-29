@@ -187,6 +187,8 @@ interface Prose {
   time?: TimeInfo;
 }
 
+type InsightTab = 'agents' | 'model' | 'risk' | 'explain' | 'sensitivity';
+
 export function App() {
   const initial = useMemo(() => getTemplate('monte-carlo'), []);
   const [template, setTemplate] = useState<TemplateModule>(initial);
@@ -203,6 +205,7 @@ export function App() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [exportingPng, setExportingPng] = useState(false);
   const [chartActionError, setChartActionError] = useState<string | null>(null);
+  const [activeInsight, setActiveInsight] = useState<InsightTab>('agents');
 
   const [agents, setAgents] = useState<Partial<Record<AgentId, AgentStatus>>>({});
   const [agentErrors, setAgentErrors] = useState<Partial<Record<AgentId, string>>>({});
@@ -435,6 +438,23 @@ export function App() {
   const uncertainty = uncertaintyItems(sim);
   const assumptions = rawStrings(sim.raw ?? {}, 'assumptions').slice(0, 4);
   const warnings = rawStrings(sim.raw ?? {}, 'warnings').slice(0, 3);
+  const doneAgentCount = AGENTS.filter((a) => agents[a.id] === 'done').length;
+  const insightTabs: { id: InsightTab; label: string; meta: string }[] = [
+    { id: 'agents', label: 'Agents', meta: building ? 'live' : `${doneAgentCount}/6` },
+    { id: 'model', label: 'Model', meta: generatedBuild ? 'generated' : auditItems[0]?.value ?? 'library' },
+    {
+      id: 'risk',
+      label: 'Risk',
+      meta: risk.flags.length ? `${risk.flags.length} flag${risk.flags.length === 1 ? '' : 's'}` : agents.risk ? 'checking' : 'clear',
+    },
+    { id: 'explain', label: 'Explain', meta: agents.explainer === 'start' ? 'live' : depth },
+    { id: 'sensitivity', label: 'Sens.', meta: agents.sensitivity === 'start' ? 'live' : 'ready' },
+  ];
+  const explainerText = explainer.text || spec.explainer?.[depth] || '';
+  const sensitivityText = sensitivity.text || 'Move a slider to stream Gemma 4 sensitivity on the changed assumption.';
+  const hasModelAudit = auditItems.length > 0 || uncertainty.length > 0 || assumptions.length > 0 || warnings.length > 0;
+  const runState = building ? 'Running' : 'Ready';
+  const viewLabel = view === '3d' ? '3D density field' : '2D analytical fan';
 
   useEffect(() => {
     window.__AUGURFORGE_EXPLAIN_PAYLOAD__ = buildExplainPayload(
@@ -452,30 +472,29 @@ export function App() {
         <div className="brand-block">
           <div className="brand-mark">A</div>
           <div>
-            <div className="eyebrow">Cerebras x Gemma 4</div>
+            <div className="eyebrow">Simulation studio</div>
             <h1>AugurForge</h1>
           </div>
         </div>
 
         <div className="rail-section">
-          <span className="rail-label">Stack proof</span>
+          <span className="rail-label">Runtime</span>
           <div className="stack-card">
             <span className="status-dot" data-live={USE_LIVE} />
             <div>
               <b>{stackMode}</b>
-              <span>gemma-4-31b pinned</span>
+              <span>Gemma 4 model routing</span>
             </div>
           </div>
           <div className="stack-list">
-            <span>6 Gemma agents</span>
-            <span>Vision input</span>
-            <span>Generated runtime</span>
-            <span>Deterministic math</span>
+            <span>Trace: {doneAgentCount}/6 agents</span>
+            <span>Math: deterministic browser run</span>
+            <span>Input: prompt plus image</span>
           </div>
         </div>
 
         <div className="rail-section">
-          <span className="rail-label">Demo moves</span>
+          <span className="rail-label">Model routes</span>
           <button
             className="rail-action primary"
             onClick={() =>
@@ -486,7 +505,7 @@ export function App() {
             }
             disabled={building}
           >
-            Generate model
+            Black-Scholes generator
           </button>
           <button
             className="rail-action"
@@ -498,50 +517,50 @@ export function App() {
             }
             disabled={building}
           >
-            SIR demo
+            SIR scenario
           </button>
           <button
             className="rail-action"
             onClick={() => void runCascade({ intent: 'Explore portfolio ruin risk under volatility', mode: 'library' })}
             disabled={building}
           >
-            Monte Carlo base
+            Monte Carlo baseline
           </button>
         </div>
 
         <div className="rail-footer">
           <span>Decision-support, not advice</span>
-          <span>Local demo, no deploy required</span>
+          <span>Local simulation runtime</span>
         </div>
       </aside>
 
       <main className="workspace">
         <header className="topbar">
           <div className="topbar-copy">
-            <div className="eyebrow">Live execution bench</div>
-            <h2>Gemma 4 shapes the model while Cerebras keeps every answer visibly fast.</h2>
-            <div className="proof-row" aria-label="demo proof points">
-              <span>6 Gemma agents</span>
-              <span>Cerebras timing</span>
-              <span>Browser math</span>
+            <div className="eyebrow">Workspace / {spec.templateId}</div>
+            <h2>{spec.title}</h2>
+            <div className="proof-row" aria-label="simulation state">
+              <span>{viewLabel}</span>
+              <span>{runState}</span>
+              <span>{USE_LIVE ? 'Cerebras live' : 'Mock rehearsal'}</span>
             </div>
           </div>
           <div className="topbar-metrics" aria-label="latest Cerebras timing">
             <div>
-              <span>TTFT</span>
-              <b>{latestTime?.ttftMs != null ? `${latestTime.ttftMs} ms` : 'ready'}</b>
+              <span>Run</span>
+              <b>{runState}</b>
             </div>
             <div>
-              <span>tokens/s</span>
-              <b>{latestTime?.tokensPerSec != null ? Math.round(latestTime.tokensPerSec) : 'standby'}</b>
+              <span>TTFT</span>
+              <b>{latestTime?.ttftMs != null ? `${latestTime.ttftMs} ms` : 'ready'}</b>
             </div>
           </div>
         </header>
 
         <section className="composer-panel">
           <div className="composer-copy">
-            <span>Model request</span>
-            <b>Ask, attach, generate, tune.</b>
+            <span>Command</span>
+            <b>Prompt, attach, or route a model.</b>
           </div>
           <Uploader onRun={(input) => void runCascade(input)} disabled={building} />
         </section>
@@ -550,8 +569,8 @@ export function App() {
           <div className="stage-column">
             <section className="parameter-strip">
               <div className="strip-head">
-                <span>Model parameters</span>
-                {building && <b>Gemma cascade running</b>}
+                <span>Parameters</span>
+                {building && <b>Agent cascade running</b>}
               </div>
               <div className="controls">
                 {spec.sliders.map((s) => (
@@ -612,16 +631,6 @@ export function App() {
                 ))}
 
                 <div className="control-cluster">
-                  {showViewToggle && (
-                    <div className="seg" role="tablist" aria-label="view">
-                      {spec.views.map((v) => (
-                        <button key={v} className={view === v ? 'active' : ''} onClick={() => setView(v)}>
-                          {v.toUpperCase()}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
                   <label className="toggle">
                     <input type="checkbox" checked={animate} onChange={(e) => setAnimate(e.target.checked)} />
                     Animate
@@ -637,9 +646,30 @@ export function App() {
                   {generatedBuild && <span className="generated-badge">Generated by Gemma 4</span>}
                 </div>
                 {spec.subtitle && <span>{spec.subtitle}</span>}
+                <span className="view-note">
+                  {view === '3d'
+                    ? '3D density surface: time, value, and probability mass.'
+                    : '2D fan: percentile cone, sampled paths, barrier, and terminal outcomes.'}
+                </span>
                 {generatedBuild && <span className="generated-note">{generatedBuild.note}</span>}
               </div>
               <div className="chart-actions" aria-label="Chart actions">
+                {showViewToggle && (
+                  <div className="chart-view-tabs" role="tablist" aria-label="Chart view">
+                    {spec.views.map((v) => (
+                      <button
+                        key={v}
+                        type="button"
+                        className={`chart-action view ${view === v ? 'active' : ''}`}
+                        onClick={() => setView(v)}
+                        title={v === '3d' ? '3D density surface for true field models' : '2D analytical fan chart'}
+                        aria-pressed={view === v}
+                      >
+                        {v.toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <button
                   type="button"
                   className="chart-action png"
@@ -668,9 +698,9 @@ export function App() {
           <aside className="insight-rail">
             <SpeedHud latest={latestTime} />
 
-            <div className="panel">
+            <div className="panel metrics-panel">
               <div className="panel-head">
-                <span className="panel-title">Metrics</span>
+                <span className="panel-title">Outputs</span>
               </div>
               <div className="metrics">
                 {sim.metrics.map((m) => (
@@ -682,129 +712,166 @@ export function App() {
               </div>
             </div>
 
-            {(auditItems.length > 0 || uncertainty.length > 0 || assumptions.length > 0 || warnings.length > 0) && (
-              <div className="panel audit-panel">
-                <div className="panel-head">
-                  <span className="panel-title">Model audit</span>
-                </div>
-                {auditItems.length > 0 && (
-                  <div className="audit-grid">
-                    {auditItems.map((item) => (
-                      <div className="audit-item" key={item.label}>
-                        <span>{item.label}</span>
-                        <b>{item.value}</b>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {uncertainty.length > 0 && (
-                  <div className="audit-lines">
-                    {uncertainty.map((item) => (
-                      <div className="audit-line" key={item.label}>
-                        <span>{item.label}</span>
-                        <b>{item.value}</b>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {(assumptions.length > 0 || warnings.length > 0) && (
-                  <div className="assumption-list">
-                    {[...assumptions, ...warnings].map((item) => (
-                      <span key={item}>{item}</span>
-                    ))}
-                  </div>
-                )}
+            <div className="panel insight-panel">
+              <div className="panel-head insight-head">
+                <span className="panel-title">Inspector</span>
+                <span className="panel-time">{building ? 'live' : 'ready'}</span>
               </div>
-            )}
 
-            {generatedBuild && (
-              <div className="panel generated-panel">
-                <div className="panel-head">
-                  <span className="panel-title">Generated model</span>
-                  {generatedBuild.fallbackUsed && <span className="panel-time warn">fallback</span>}
-                </div>
-                <p className="prose compact">
-                  {generatedBuild.generatedSpec.title ?? spec.title}. Compiled from a validated Gemma 4 model spec
-                  into deterministic browser math.
-                </p>
-              </div>
-            )}
-
-            <div className="panel agent-panel">
-              <div className="panel-head">
-                <span className="panel-title">Gemma agent cascade</span>
-                {building && <span className="panel-time">streaming</span>}
-              </div>
-              <div className="cascade">
-                {AGENTS.map((a) => (
-                  <span key={a.id} className={`agent-chip ${agents[a.id] ?? ''}`}>
-                    <span className="led" />
-                    {a.label}
-                  </span>
+              <div className="insight-switcher" role="tablist" aria-label="Insight panels">
+                {insightTabs.map((tab) => (
+                  <button
+                    type="button"
+                    key={tab.id}
+                    role="tab"
+                    aria-selected={activeInsight === tab.id}
+                    className={`insight-tab ${activeInsight === tab.id ? 'active' : ''}`}
+                    onClick={() => setActiveInsight(tab.id)}
+                  >
+                    <span>{tab.label}</span>
+                    <b>{tab.meta}</b>
+                  </button>
                 ))}
               </div>
-              {Object.entries(agentErrors).some(([, message]) => message) && (
-                <div className="agent-errors">
-                  {Object.entries(agentErrors).map(([agent, message]) =>
-                    message ? (
-                      <div className="agent-error" key={agent}>
-                        <b>{agent}</b>
-                        <span>{message}</span>
-                      </div>
-                    ) : null,
-                  )}
-                </div>
-              )}
-            </div>
 
-            {(risk.flags.length > 0 || agents.risk) && (
-              <div className="panel">
-                <div className="panel-head">
-                  <span className="panel-title">Risk flags</span>
-                  {risk.time?.totalMs != null && <span className="panel-time">{risk.time.totalMs} ms</span>}
-                </div>
-                {risk.flags.map((f, i) => (
-                  <div className={`risk-flag ${f.level}`} key={i}>
-                    <span className="dot" />
-                    <div>
-                      {f.text} {f.ref && <span className="ref">/ {f.ref}</span>}
+              <div className="insight-body">
+                {activeInsight === 'agents' && (
+                  <div className="insight-section">
+                    <div className="section-head">
+                      <span>Gemma agent cascade</span>
+                      {building && <b>streaming</b>}
                     </div>
+                    <div className="cascade">
+                      {AGENTS.map((a) => (
+                        <span key={a.id} className={`agent-chip ${agents[a.id] ?? ''}`}>
+                          <span className="led" />
+                          {a.label}
+                        </span>
+                      ))}
+                    </div>
+                    {Object.entries(agentErrors).some(([, message]) => message) && (
+                      <div className="agent-errors">
+                        {Object.entries(agentErrors).map(([agent, message]) =>
+                          message ? (
+                            <div className="agent-error" key={agent}>
+                              <b>{agent}</b>
+                              <span>{message}</span>
+                            </div>
+                          ) : null,
+                        )}
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
-            )}
+                )}
 
-            {(explainer.text || agents.explainer) && (
-              <div className="panel">
-                <div className="panel-head">
-                  <span className="panel-title">Explainer</span>
-                  <div className="seg depth-seg">
-                    <button className={depth === 'entry' ? 'active' : ''} onClick={() => onDepth('entry')}>
-                      Entry
-                    </button>
-                    <button className={depth === 'expert' ? 'active' : ''} onClick={() => onDepth('expert')}>
-                      Expert
-                    </button>
+                {activeInsight === 'model' && (
+                  <div className="insight-section model-section">
+                    <div className="section-head">
+                      <span>Model audit</span>
+                      <b>{generatedBuild ? 'Gemma 4 generated' : 'library template'}</b>
+                    </div>
+                    {generatedBuild && (
+                      <div className="generated-callout">
+                        <div>
+                          <span>Generated model</span>
+                          <b>{generatedBuild.generatedSpec.title ?? spec.title}</b>
+                        </div>
+                        {generatedBuild.fallbackUsed && <span className="panel-time warn">fallback</span>}
+                        <p>
+                          Compiled from a validated Gemma 4 model spec into deterministic browser math.
+                        </p>
+                      </div>
+                    )}
+                    {hasModelAudit ? (
+                      <>
+                        {auditItems.length > 0 && (
+                          <div className="audit-grid">
+                            {auditItems.map((item) => (
+                              <div className="audit-item" key={item.label}>
+                                <span>{item.label}</span>
+                                <b>{item.value}</b>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {uncertainty.length > 0 && (
+                          <div className="audit-lines">
+                            {uncertainty.map((item) => (
+                              <div className="audit-line" key={item.label}>
+                                <span>{item.label}</span>
+                                <b>{item.value}</b>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {(assumptions.length > 0 || warnings.length > 0) && (
+                          <div className="assumption-list">
+                            {[...assumptions, ...warnings].map((item) => (
+                              <span key={item}>{item}</span>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <p className="empty-state">Model audit fields appear after deterministic browser math runs.</p>
+                    )}
                   </div>
-                </div>
-                <p className="prose">
-                  {explainer.text}
-                  {agents.explainer === 'start' && <span className="stream-caret" />}
-                </p>
-              </div>
-            )}
+                )}
 
-            {(sensitivity.text || agents.sensitivity) && (
-              <div className="panel">
-                <div className="panel-head">
-                  <span className="panel-title">Sensitivity</span>
-                </div>
-                <p className="prose">
-                  {sensitivity.text}
-                  {agents.sensitivity === 'start' && <span className="stream-caret" />}
-                </p>
+                {activeInsight === 'risk' && (
+                  <div className="insight-section">
+                    <div className="section-head">
+                      <span>Risk flags</span>
+                      {risk.time?.totalMs != null && <b>{risk.time.totalMs} ms</b>}
+                    </div>
+                    {risk.flags.length > 0 ? (
+                      risk.flags.map((f, i) => (
+                        <div className={`risk-flag ${f.level}`} key={i}>
+                          <span className="dot" />
+                          <div>
+                            {f.text} {f.ref && <span className="ref">/ {f.ref}</span>}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="empty-state">No active risk flag yet. Gemma 4 risk checks stream after the model resolves.</p>
+                    )}
+                  </div>
+                )}
+
+                {activeInsight === 'explain' && (
+                  <div className="insight-section">
+                    <div className="section-head">
+                      <span>Explainer</span>
+                      <div className="seg depth-seg">
+                        <button className={depth === 'entry' ? 'active' : ''} onClick={() => onDepth('entry')}>
+                          Entry
+                        </button>
+                        <button className={depth === 'expert' ? 'active' : ''} onClick={() => onDepth('expert')}>
+                          Expert
+                        </button>
+                      </div>
+                    </div>
+                    <p className="prose">
+                      {explainerText}
+                      {agents.explainer === 'start' && <span className="stream-caret" />}
+                    </p>
+                  </div>
+                )}
+
+                {activeInsight === 'sensitivity' && (
+                  <div className="insight-section">
+                    <div className="section-head">
+                      <span>Sensitivity</span>
+                    </div>
+                    <p className="prose">
+                      {sensitivityText}
+                      {agents.sensitivity === 'start' && <span className="stream-caret" />}
+                    </p>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </aside>
         </section>
       </main>
