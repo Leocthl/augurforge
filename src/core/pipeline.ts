@@ -24,6 +24,12 @@ import { runVisualizer } from './agents/visualizer';
 import { runSensitivity } from './agents/sensitivity';
 import { runRisk } from './agents/risk';
 import { runExplainer } from './agents/explainer';
+import {
+  createGeneratedTemplate,
+  isGeneratedTemplateId,
+  type GeneratedModelerResult,
+  type GeneratedTemplateBuild,
+} from './generative';
 
 export interface PipelineInput {
   intent?: string;
@@ -32,6 +38,10 @@ export interface PipelineInput {
   imageDataUrl?: string;
   /** Optional explicit template override. */
   templateId?: string;
+  /** "generate" forces the safe runtime-generated model path. */
+  mode?: 'auto' | 'library' | 'generate';
+  /** Superseded cascades are cancelled by App so we do not burn live RPM. */
+  signal?: AbortSignal;
 }
 
 export interface TweakContext {
@@ -42,19 +52,34 @@ export interface TweakContext {
   depth?: 'entry' | 'expert';
   /** The slider that just changed (for the sensitivity narrative). */
   changed?: { id: string; label?: string; from: number; to: number };
+  signal?: AbortSignal;
 }
 
 export interface PipelineResult {
   orchestrator: OrchestratorResult;
   modeler: ModelerResult;
   spec: VisualizerResult;
+  generatedTemplate?: GeneratedTemplateBuild;
 }
 
 /** Initial build: model selection → parameters → dashboard spec. */
 export async function runPipeline(input: PipelineInput, onEvent: OnEvent): Promise<PipelineResult> {
   const orchestrator = await runOrchestrator(input, onEvent);
   const modeler = await runModeler({ ...input, templateId: orchestrator.templateId }, onEvent);
-  const spec = await runVisualizer(modeler, onEvent);
+  const spec = await runVisualizer(modeler, onEvent, input.signal);
+  if (isGeneratedTemplateId(spec.templateId)) {
+    const generatedTemplate = createGeneratedTemplate(
+      (modeler as GeneratedModelerResult).generatedSpec,
+      input.intent,
+      spec,
+    );
+    return {
+      orchestrator,
+      modeler,
+      spec: generatedTemplate.template.spec,
+      generatedTemplate,
+    };
+  }
   return { orchestrator, modeler, spec };
 }
 

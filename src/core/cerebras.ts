@@ -42,6 +42,9 @@ export interface ChatOpts {
   temperature?: number;
   maxTokens?: number;
   provider?: Provider;
+  signal?: AbortSignal;
+  /** Explicit opt-in for the speed baseline when a live baseline provider is not configured. */
+  fallbackToMock?: boolean;
   /** MOCK mode only: the canned reply this call should resolve to. */
   mock?: { text: string; json?: unknown };
 }
@@ -87,7 +90,12 @@ function schedule<T>(fn: () => Promise<T>): Promise<T> {
 
 export async function chat(opts: ChatOpts, onToken?: OnToken): Promise<ChatResult> {
   if (!USE_LIVE) return mockChat(opts, onToken);
-  return schedule(() => liveChat(opts, onToken));
+  try {
+    return await schedule(() => liveChat(opts, onToken));
+  } catch (err) {
+    if (opts.fallbackToMock && !opts.signal?.aborted) return mockChat(opts, onToken);
+    throw err;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -159,6 +167,7 @@ async function liveChat(opts: ChatOpts, onToken?: OnToken): Promise<ChatResult> 
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    signal: opts.signal,
   });
 
   if (!res.ok) {
@@ -174,7 +183,7 @@ async function liveChat(opts: ChatOpts, onToken?: OnToken): Promise<ChatResult> 
   const text = data?.choices?.[0]?.message?.content ?? '';
   return {
     text,
-    json: tryParseJson(text),
+    json: parseJsonLoose(text),
     timeInfo: readTimeInfo(data, start),
   };
 }
@@ -225,7 +234,7 @@ async function parseSseStream(
 
   const timeInfo = readTimeInfo(lastChunk, start);
   if (timeInfo.ttftMs === undefined) timeInfo.ttftMs = ttftMs;
-  return { text, json: tryParseJson(text), timeInfo };
+  return { text, json: parseJsonLoose(text), timeInfo };
 }
 
 /** Cerebras returns `time_info` on the response/usage. Tolerate a few field spellings. */
@@ -235,13 +244,26 @@ function readTimeInfo(data: any, start: number): TimeInfo {
   const usage = data?.usage ?? {};
   const totalMs = Date.now() - start;
   const totalTokens: number | undefined =
-    usage.completion_tokens ?? usage.total_tokens ?? ti.total_tokens;
+    usage.completion_tokens ?? usage.total_tokens ?? ti.total_tokens ?? ti.totalTokens;
+  const seconds =
+    ti.generation_time ??
+    ti.completion_time ??
+    ti.inference_time ??
+    (typeof ti.total_time === 'number' ? ti.total_time : undefined);
   const queueAndInference = (ti.queue_time ?? 0) + (ti.inference_time ?? 0);
   const tokensPerSec: number | undefined =
     ti.tokens_per_second ??
+    ti.tokensPerSecond ??
+    ti.output_tokens_per_second ??
+    (totalTokens && seconds ? totalTokens / seconds : undefined) ??
     (totalTokens && queueAndInference ? totalTokens / queueAndInference : undefined);
+  const ttftSeconds =
+    ti.time_to_first_token ??
+    ti.ttft ??
+    ti.ttft_s ??
+    ti.prompt_time;
   return {
-    ttftMs: ti.prompt_time !== undefined ? Math.round(ti.prompt_time * 1000) : undefined,
+    ttftMs: ttftSeconds !== undefined ? Math.round(ttftSeconds * 1000) : undefined,
     tokensPerSec: tokensPerSec ? Math.round(tokensPerSec) : undefined,
     totalTokens,
     totalMs,
@@ -249,10 +271,26 @@ function readTimeInfo(data: any, start: number): TimeInfo {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function tryParseJson(text: string): any {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return undefined;
+function parseJsonLoose(text: string): any {
+  const trimmed = text.trim();
+  const unfenced = trimmed
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+  const candidates = [trimmed, unfenced, extractJsonObject(unfenced)].filter(Boolean) as string[];
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // try the next shape
+    }
   }
+  return undefined;
+}
+
+function extractJsonObject(text: string): string | undefined {
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start === -1 || end === -1 || end <= start) return undefined;
+  return text.slice(start, end + 1);
 }

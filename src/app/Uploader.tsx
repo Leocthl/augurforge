@@ -10,13 +10,31 @@ interface Props {
   disabled?: boolean;
 }
 
+const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
+const SUPPORTED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+
 export function Uploader({ onRun, disabled }: Props) {
   const [intent, setIntent] = useState('');
   const [imageName, setImageName] = useState<string | null>(null);
+  const [mode, setMode] = useState<PipelineInput['mode']>('auto');
+  const [fileError, setFileError] = useState<string | null>(null);
   const imageData = useRef<string | undefined>(undefined);
 
   const readFile = (file?: File) => {
     if (!file) return;
+    if (!SUPPORTED_IMAGE_TYPES.has(file.type)) {
+      imageData.current = undefined;
+      setImageName(null);
+      setFileError('Use a PNG, JPEG, or WebP image.');
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      imageData.current = undefined;
+      setImageName(null);
+      setFileError('Image must be under 6 MB.');
+      return;
+    }
+    setFileError(null);
     const reader = new FileReader();
     reader.onload = () => {
       imageData.current = reader.result as string;
@@ -26,26 +44,49 @@ export function Uploader({ onRun, disabled }: Props) {
   };
 
   const submit = () => {
-    onRun({ intent: intent.trim() || undefined, imageDataUrl: imageData.current });
+    if (disabled) return;
+    onRun({ intent: intent.trim() || undefined, imageDataUrl: imageData.current, mode });
+  };
+
+  const useGeneratedDemo = () => {
+    setMode('generate');
+    setIntent('Build a Black-Scholes option pricing sandbox with Greeks and a pricing curve');
   };
 
   return (
     <div className="uploader">
+      <div className="seg mode-seg" role="tablist" aria-label="model build mode">
+        <button type="button" className={mode !== 'generate' ? 'active' : ''} onClick={() => setMode('auto')}>
+          Auto route
+        </button>
+        <button type="button" className={mode === 'generate' ? 'active' : ''} onClick={() => setMode('generate')}>
+          Generate
+        </button>
+      </div>
       <input
         type="text"
-        placeholder="Describe a model, or attach a chart / screenshot / sketch…"
+        placeholder={
+          mode === 'generate'
+            ? 'Ask Gemma to generate a new model, e.g. Black-Scholes option pricing'
+            : 'Describe a model, or attach a chart / screenshot / sketch...'
+        }
         value={intent}
+        disabled={disabled}
         onChange={(e) => setIntent(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter') submit();
         }}
       />
       <label className={`drop ${imageName ? 'has' : ''}`}>
-        {imageName ?? '📎 Attach image'}
-        <input type="file" accept="image/*" hidden onChange={(e) => readFile(e.target.files?.[0])} />
+        {imageName ?? 'Attach image'}
+        <input type="file" accept="image/*" hidden disabled={disabled} onChange={(e) => readFile(e.target.files?.[0])} />
       </label>
+      {fileError && <span className="upload-error">{fileError}</span>}
+      <button className="btn" type="button" onClick={useGeneratedDemo} disabled={disabled}>
+        Black-Scholes demo
+      </button>
       <button className="btn btn-primary" onClick={submit} disabled={disabled}>
-        Build ▶
+        {mode === 'generate' ? 'Generate model' : 'Build'}
       </button>
     </div>
   );
