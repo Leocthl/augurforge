@@ -37,8 +37,10 @@ export function CascadeTranscript({ beats, activeAgent, focusedAgent, variant, o
           <li
             key={b.agent}
             ref={isFocused ? focusedRef : undefined}
+            tabIndex={0}
             className={`cascade-beat${isActive ? ' is-active' : ''}${isFocused ? ' is-focused' : ''}${b.status === 'error' ? ' is-error' : ''}`}
             onClick={() => onSelect?.(b.agent)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect?.(b.agent); } }}
           >
             <span className="cascade-dot" style={{ background: palette[b.agent] }} aria-hidden="true" />
             <span className="cascade-agent">{AGENT_LABEL[b.agent]}</span>
