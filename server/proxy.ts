@@ -72,7 +72,7 @@ app.use(
     },
   }),
 );
-app.use(express.json({ limit: '12mb' })); // images arrive as base64 data URIs
+app.use(express.json({ limit: '16mb' })); // prepared image attachments arrive as base64 data URIs
 
 app.get('/api/health', (_req, res) => {
   res.json({

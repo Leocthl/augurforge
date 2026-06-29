@@ -30,11 +30,14 @@ import {
   type GeneratedModelerResult,
   type GeneratedTemplateBuild,
 } from './generative';
+import type { PipelineAttachment } from './attachments';
 
 export interface PipelineInput {
   intent?: string;
   data?: Record<string, unknown> | string;
-  /** base64 data URI for the Modeler vision call. */
+  /** Prepared uploads: raster images for vision, PDFs/diagrams as extracted text. */
+  attachments?: PipelineAttachment[];
+  /** Legacy single-image path. Prefer attachments[]. */
   imageDataUrl?: string;
   /** Optional explicit template override. */
   templateId?: string;

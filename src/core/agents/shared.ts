@@ -3,6 +3,7 @@
  * Not part of the cross-session contract; lives entirely inside /core.
  */
 import type { PipelineInput } from '../pipeline';
+import { describeAttachmentsForPrompt } from '../attachments';
 
 export function errMsg(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
@@ -89,7 +90,9 @@ export function describeInput(input: PipelineInput): string {
   if (input.templateId) bits.push(`Requested template: ${input.templateId}`);
   if (typeof input.data === 'string') bits.push(`Data: ${input.data}`);
   else if (input.data) bits.push(`Data keys: ${Object.keys(input.data).join(', ')}`);
-  if (input.imageDataUrl) bits.push('An input image is attached (vision).');
+  const attachmentSummary = describeAttachmentsForPrompt(input.attachments);
+  if (attachmentSummary) bits.push(attachmentSummary);
+  else if (input.imageDataUrl) bits.push('An input image is attached for Gemma 4 vision.');
   if (input.mode) bits.push(`Mode: ${input.mode}`);
   return bits.join('\n') || 'No structured input provided.';
 }

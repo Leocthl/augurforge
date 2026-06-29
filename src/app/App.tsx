@@ -12,6 +12,7 @@ import type {
   AgentStatus,
   DashboardSpec,
   ExplainPayload,
+  ModelerResult,
   OnEvent,
   ParamSet,
   ProseResult,
@@ -214,6 +215,7 @@ export function App() {
   const [risk, setRisk] = useState<{ flags: RiskFlag[]; time?: TimeInfo }>({ flags: [] });
   const [latestTime, setLatestTime] = useState<TimeInfo | undefined>(undefined);
   const [building, setBuilding] = useState(false);
+  const [modelerMapping, setModelerMapping] = useState<Record<string, string>>({});
 
   // Refs so async streaming callbacks never read stale state.
   const templateRef = useRef(template);
@@ -246,6 +248,8 @@ export function App() {
       else if (e.status === 'token') setSensitivity((p) => ({ ...p, text: p.text + (e.delta ?? '') }));
       else if (e.status === 'done')
         setSensitivity({ text: (e.result as ProseResult)?.text ?? '', time: e.timeInfo });
+    } else if (e.agent === 'modeler' && e.status === 'done') {
+      setModelerMapping((e.result as ModelerResult)?.mapping ?? {});
     } else if (e.agent === 'risk' && e.status === 'done') {
       setRisk({ flags: (e.result as RiskResult)?.flags ?? [], time: e.timeInfo });
     }
@@ -294,6 +298,7 @@ export function App() {
       setRisk({ flags: [] });
       setAgents({});
       setAgentErrors({});
+      setModelerMapping({});
       setGeneratedBuild(null);
       try {
         const res = await runPipeline({ ...input, signal: controller.signal }, sink);
@@ -438,6 +443,10 @@ export function App() {
   const uncertainty = uncertaintyItems(sim);
   const assumptions = rawStrings(sim.raw ?? {}, 'assumptions').slice(0, 4);
   const warnings = rawStrings(sim.raw ?? {}, 'warnings').slice(0, 3);
+  const inputEvidence = Object.entries(modelerMapping)
+    .filter(([, value]) => value.trim())
+    .slice(0, 6)
+    .map(([label, value]) => ({ label, value }));
   const doneAgentCount = AGENTS.filter((a) => agents[a.id] === 'done').length;
   const insightTabs: { id: InsightTab; label: string; meta: string }[] = [
     { id: 'agents', label: 'Agents', meta: building ? 'live' : `${doneAgentCount}/6` },
@@ -452,7 +461,8 @@ export function App() {
   ];
   const explainerText = explainer.text || spec.explainer?.[depth] || '';
   const sensitivityText = sensitivity.text || 'Move a slider to stream Gemma 4 sensitivity on the changed assumption.';
-  const hasModelAudit = auditItems.length > 0 || uncertainty.length > 0 || assumptions.length > 0 || warnings.length > 0;
+  const hasModelAudit =
+    inputEvidence.length > 0 || auditItems.length > 0 || uncertainty.length > 0 || assumptions.length > 0 || warnings.length > 0;
   const runState = building ? 'Running' : 'Ready';
   const viewLabel = view === '3d' ? '3D density field' : '2D analytical fan';
 
@@ -784,6 +794,16 @@ export function App() {
                     )}
                     {hasModelAudit ? (
                       <>
+                        {inputEvidence.length > 0 && (
+                          <div className="evidence-list">
+                            {inputEvidence.map((item) => (
+                              <div className="evidence-item" key={item.label}>
+                                <span>{item.label}</span>
+                                <b>{item.value}</b>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                         {auditItems.length > 0 && (
                           <div className="audit-grid">
                             {auditItems.map((item) => (
