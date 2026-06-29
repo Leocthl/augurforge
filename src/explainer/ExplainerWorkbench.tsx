@@ -196,7 +196,7 @@ function roleStatusSummary(statuses: Record<StakeholderRoleId, RoleImpactStatus>
   const ready = values.filter((status) => status === 'done').length;
   const fallback = values.filter((status) => status === 'error').length;
   const running = values.filter((status) => status === 'loading').length;
-  if (running > 0) return `Roles ${ready + fallback}/${total} ready, ${running} running`;
+  if (running > 0) return `Roles ${ready}/${total} ready, ${running} running${fallback ? `, ${fallback} fallback` : ''}`;
   if (ready + fallback === total) return `Roles ${ready}/${total} ready${fallback ? `, ${fallback} fallback` : ''}`;
-  return `Roles ${ready + fallback}/${total} ready`;
+  return `Roles ${ready}/${total} ready${fallback ? `, ${fallback} fallback` : ''}`;
 }

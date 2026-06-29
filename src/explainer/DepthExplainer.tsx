@@ -62,6 +62,7 @@ export function DepthExplainer({ source }: Props) {
   const stopRef = useRef<null | (() => void)>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const sessionRef = useRef<AugurForgeSessionSnapshot | null>(session);
+  const stateRef = useRef<ReasoningState>(state);
 
   const recorder = useClipRecorder();
 
@@ -78,6 +79,10 @@ export function DepthExplainer({ source }: Props) {
   useEffect(() => {
     sessionRef.current = session;
   }, [session]);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   useEffect(() => {
     setSession(readAugurForgeSession());
@@ -142,12 +147,17 @@ export function DepthExplainer({ source }: Props) {
     return parts.join('\n');
   }, [session]);
 
+  const roleRunKey = useMemo(() => {
+    const beat = state.beats.find((item) => item.agent === 'explainer' && item.status === 'done');
+    return beat ? `${runId}:${beat.text}` : null;
+  }, [runId, state.beats]);
+
   useEffect(() => {
-    const explainerDone = state.beats.some((beat) => beat.agent === 'explainer' && beat.status === 'done');
-    if (!explainerDone) return;
+    if (!roleRunKey) return;
 
     const controller = new AbortController();
     let cancelled = false;
+    const stateSnapshot = stateRef.current;
 
     const queue = async () => {
       for (const role of ROLE_DEFS) {
@@ -155,9 +165,9 @@ export function DepthExplainer({ source }: Props) {
         setRoleStatuses((prev) => ({ ...prev, [role.id]: 'loading' }));
         try {
           const result =
-            mode === 'real'
-              ? await runRoleAnalysis(role.id, state, roleSessionSummary, controller.signal)
-              : await runMockRoleAnalysis(role.id, state, roleSessionSummary);
+            activeSourceMode === 'real'
+              ? await runRoleAnalysis(role.id, stateSnapshot, roleSessionSummary, controller.signal)
+              : await runMockRoleAnalysis(role.id, stateSnapshot, roleSessionSummary);
           if (cancelled) return;
           setRoleResults((prev) => ({ ...prev, [role.id]: result }));
           setRoleStatuses((prev) => ({ ...prev, [role.id]: result.error ? 'error' : 'done' }));
@@ -173,7 +183,7 @@ export function DepthExplainer({ source }: Props) {
       cancelled = true;
       controller.abort();
     };
-  }, [mode, roleSessionSummary, runId, state]);
+  }, [activeSourceMode, roleRunKey, roleSessionSummary]);
 
   return (
     <div className="explainer-root">
