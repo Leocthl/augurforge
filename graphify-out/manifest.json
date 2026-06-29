@@ -25,8 +25,8 @@
     "semantic_hash": ""
   },
   "src/app/App.tsx": {
-    "mtime": 1782747316.243194,
-    "ast_hash": "ff902589b589b159b25de5839a09c2ee",
+    "mtime": 1782749912.3762248,
+    "ast_hash": "f06313131d5ccc942895c2e95b6bd1c8",
     "semantic_hash": ""
   },
   "src/app/Renderer.tsx": {
@@ -45,29 +45,29 @@
     "semantic_hash": ""
   },
   "src/core/agents/explainer.ts": {
-    "mtime": 1782727369.1616898,
-    "ast_hash": "0a8ea53467b5abef07523ef2a50c8f73",
-    "semantic_hash": "0a8ea53467b5abef07523ef2a50c8f73"
+    "mtime": 1782749742.225168,
+    "ast_hash": "ebccc90e5fdeb0be74d51c9a2a14a6c4",
+    "semantic_hash": ""
   },
   "src/core/agents/modeler.ts": {
-    "mtime": 1782747143.4258566,
-    "ast_hash": "0408b486a12030b698db965e6606ba28",
+    "mtime": 1782749918.0015373,
+    "ast_hash": "1fbc51b7043cf3428950dab22c6c9469",
     "semantic_hash": ""
   },
   "src/core/agents/orchestrator.ts": {
-    "mtime": 1782727369.1642234,
-    "ast_hash": "3f2f34fd6aa47e4229ec1eb032043676",
-    "semantic_hash": "3f2f34fd6aa47e4229ec1eb032043676"
+    "mtime": 1782749742.2281866,
+    "ast_hash": "b09bb9be0873d9d7d8eacaa10be0a6f7",
+    "semantic_hash": ""
   },
   "src/core/agents/risk.ts": {
-    "mtime": 1782727369.165272,
-    "ast_hash": "3a865bd00ca294f46aa00136ddda65c8",
-    "semantic_hash": "3a865bd00ca294f46aa00136ddda65c8"
+    "mtime": 1782749742.230721,
+    "ast_hash": "c27032c0bd8d44d88033d20d60e65edc",
+    "semantic_hash": ""
   },
   "src/core/agents/sensitivity.ts": {
-    "mtime": 1782727369.1667867,
-    "ast_hash": "b2cafa22a1aa49bb0961cec59bacff1a",
-    "semantic_hash": "b2cafa22a1aa49bb0961cec59bacff1a"
+    "mtime": 1782749742.2322352,
+    "ast_hash": "dfaa16d9c452b305d699f4f548d14032",
+    "semantic_hash": ""
   },
   "src/core/agents/shared.ts": {
     "mtime": 1782747143.426865,
@@ -75,8 +75,8 @@
     "semantic_hash": ""
   },
   "src/core/agents/visualizer.ts": {
-    "mtime": 1782747143.4278657,
-    "ast_hash": "67dbaa19f0cac2c23b9b5e964f63fc34",
+    "mtime": 1782749742.2327404,
+    "ast_hash": "42f9b8db369ce17a8c2d228e4b66c6df",
     "semantic_hash": ""
   },
   "src/core/cerebras.ts": {
@@ -90,14 +90,14 @@
     "semantic_hash": "95e60fc8e608d5c9160d1694bc97841b"
   },
   "src/core/generative.test.ts": {
-    "mtime": 1782727369.171865,
-    "ast_hash": "5e0427977ae1d828e66869c75932107c",
-    "semantic_hash": "5e0427977ae1d828e66869c75932107c"
+    "mtime": 1782749742.2342598,
+    "ast_hash": "a0bb876c9d3ba721b84725f60eecdad0",
+    "semantic_hash": ""
   },
   "src/core/generative.ts": {
-    "mtime": 1782727369.1728714,
-    "ast_hash": "accf86e7ac97d5fbe74f50ca95b536c6",
-    "semantic_hash": "accf86e7ac97d5fbe74f50ca95b536c6"
+    "mtime": 1782749742.2357726,
+    "ast_hash": "2cac50909e7bc66eac943c1d91bff90a",
+    "semantic_hash": ""
   },
   "src/core/math/black-scholes.test.ts": {
     "mtime": 1782727369.1744483,
@@ -170,9 +170,9 @@
     "semantic_hash": "4463ad06fcb53ecca8ab1d544fd997b8"
   },
   "src/explainer/index.ts": {
-    "mtime": 1782739948.7054305,
-    "ast_hash": "a8d400cfaedcabe9c758e51c2a984cda",
-    "semantic_hash": "a8d400cfaedcabe9c758e51c2a984cda"
+    "mtime": 1782750533.636176,
+    "ast_hash": "c4785f3afb831cff8ddc9cc5759f4977",
+    "semantic_hash": ""
   },
   "src/explainer/liveSource.ts": {
     "mtime": 1782747272.3044333,
@@ -190,8 +190,8 @@
     "semantic_hash": ""
   },
   "src/explainer/types.ts": {
-    "mtime": 1782744829.0382955,
-    "ast_hash": "45acd2ae744dd0273a45dab5c4bf919e",
+    "mtime": 1782750499.281329,
+    "ast_hash": "742d72fe7cc235a01d69c9eb1034a97b",
     "semantic_hash": ""
   },
   "src/explainer/useClipRecorder.ts": {
@@ -265,14 +265,14 @@
     "semantic_hash": "249793c4fa5826734d8f763fd78bdf90"
   },
   "src/warroom/WarRoom.tsx": {
-    "mtime": 1782747408.260393,
-    "ast_hash": "b071ee38702db3e81474e908e6a937ff",
+    "mtime": 1782750698.3218741,
+    "ast_hash": "c2b41f7b7e89e909a46edbb1dd42f85b",
     "semantic_hash": ""
   },
   "src/warroom/agents.ts": {
-    "mtime": 1782741189.2200716,
-    "ast_hash": "8462d5598f6189915ac84ef871a28f25",
-    "semantic_hash": "8462d5598f6189915ac84ef871a28f25"
+    "mtime": 1782749694.8103974,
+    "ast_hash": "5fff753558a726b68378f6468efea02b",
+    "semantic_hash": ""
   },
   "src/warroom/bakeAtlas.ts": {
     "mtime": 1782741189.2644355,
@@ -280,9 +280,9 @@
     "semantic_hash": "f468764bb2b2db32065c1874039119c2"
   },
   "src/warroom/bubbles.ts": {
-    "mtime": 1782741189.2481978,
-    "ast_hash": "464c04a548ea86c020403d519ef35be4",
-    "semantic_hash": "464c04a548ea86c020403d519ef35be4"
+    "mtime": 1782749723.0065155,
+    "ast_hash": "dca3ac9caec5660d818f331157bfc9f0",
+    "semantic_hash": ""
   },
   "src/warroom/characters.json": {
     "mtime": 1782738471.852771,
@@ -290,9 +290,9 @@
     "semantic_hash": "f1f72e00d74137b1e516e546cd42d82a"
   },
   "src/warroom/crowd.ts": {
-    "mtime": 1782739162.1228209,
-    "ast_hash": "bec0eb58c6359a0453a119373ef52923",
-    "semantic_hash": "bec0eb58c6359a0453a119373ef52923"
+    "mtime": 1782749715.1613855,
+    "ast_hash": "586fccce3a05f50ae6ae68861f4cbf82",
+    "semantic_hash": ""
   },
   "src/warroom/dev.tsx": {
     "mtime": 1782734651.9282973,
@@ -300,8 +300,8 @@
     "semantic_hash": "cf0575ba74274c237350171b0a630bff"
   },
   "src/warroom/draw.ts": {
-    "mtime": 1782744315.3516724,
-    "ast_hash": "99495264c036e68dbb9a5146f777bfde",
+    "mtime": 1782749737.3101647,
+    "ast_hash": "c30a361acb602fa5335ed54779270457",
     "semantic_hash": ""
   },
   "src/warroom/index.ts": {
@@ -310,8 +310,8 @@
     "semantic_hash": "7170a4595b60ca5ab83da3a2c8da42b8"
   },
   "src/warroom/scene.ts": {
-    "mtime": 1782744303.5013835,
-    "ast_hash": "f2baa6ac8a9fd6bfc29fb4a34a5d126c",
+    "mtime": 1782749443.6825242,
+    "ast_hash": "688161d8cd38dd8f4f94c22dcf21eff5",
     "semantic_hash": ""
   },
   "src/warroom/sheet.ts": {
@@ -602,6 +602,91 @@
   "docs/superpowers/specs/2026-06-29-attachment-system-integration-design.md": {
     "mtime": 1782747008.0934925,
     "ast_hash": "ac2dc24a0c80f059fb4ab47978e8a929",
+    "semantic_hash": ""
+  },
+  "src/explainer/graphModel.test.ts": {
+    "mtime": 1782750037.6627643,
+    "ast_hash": "f14df911bf71e49ff8728bc3be5be67a",
+    "semantic_hash": ""
+  },
+  "src/explainer/graphModel.ts": {
+    "mtime": 1782749437.6323512,
+    "ast_hash": "e36415bdf065c878dad4bfb933aad085",
+    "semantic_hash": ""
+  },
+  "src/warroom/agentDossier.test.ts": {
+    "mtime": 1782749590.5835977,
+    "ast_hash": "e33528522dddde581727ca56f984bf19",
+    "semantic_hash": ""
+  },
+  "src/warroom/agentDossier.ts": {
+    "mtime": 1782749699.408229,
+    "ast_hash": "614713c61eba941c3a846161256de752",
+    "semantic_hash": ""
+  },
+  "src/warroom/camera.test.ts": {
+    "mtime": 1782749777.1174457,
+    "ast_hash": "d73ca4d01b24078ce2bdd9223e0abc98",
+    "semantic_hash": ""
+  },
+  "src/warroom/camera.ts": {
+    "mtime": 1782749428.5825932,
+    "ast_hash": "78bb521c1cad3972fe58a9fe6fe89955",
+    "semantic_hash": ""
+  },
+  "src/warroom/questionRun.test.ts": {
+    "mtime": 1782749512.3197505,
+    "ast_hash": "152b9dbf157acc2963a59be7788068fc",
+    "semantic_hash": ""
+  },
+  "src/warroom/questionRun.ts": {
+    "mtime": 1782750707.814672,
+    "ast_hash": "ad4264bce98ef55f4096d49d3d2a9068",
+    "semantic_hash": ""
+  },
+  "src/warroom/reportExport.test.ts": {
+    "mtime": 1782749550.38761,
+    "ast_hash": "867e50a3f251eab5cc78dcd7c291aa23",
+    "semantic_hash": ""
+  },
+  "src/warroom/reportExport.ts": {
+    "mtime": 1782750715.6486125,
+    "ast_hash": "0f9a944a7796dc55447dae33731c8857",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-06-29-standalone-explainer-workbench.md": {
+    "mtime": 1782749087.334635,
+    "ast_hash": "2d810e99f1b27715712384f9940b4162",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-06-29-warroom-console-expansion.md": {
+    "mtime": 1782749215.5373023,
+    "ast_hash": "1ed27b1b17d1234af171e0ac5ff20919",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-06-29-standalone-explainer-workbench-design.md": {
+    "mtime": 1782748723.1356351,
+    "ast_hash": "3b3a8d0e68f70fa91cab73a44710bf74",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-06-29-warroom-console-design.md": {
+    "mtime": 1782748615.5365121,
+    "ast_hash": "253b4e4711f152d8fdaba82b5bb97627",
+    "semantic_hash": ""
+  },
+  "c7d6380c-a662-4b5a-8c89-e8b013511cd7.png": {
+    "mtime": 1782749742.2211304,
+    "ast_hash": "91110ccb98e79fe30674f9980ba10995",
+    "semantic_hash": ""
+  },
+  "src/explainer/roleAnalysis.test.ts": {
+    "mtime": 1782750473.783077,
+    "ast_hash": "4708945909826b8099fe40fcb485870d",
+    "semantic_hash": ""
+  },
+  "src/explainer/roleAnalysis.ts": {
+    "mtime": 1782750528.2879214,
+    "ast_hash": "60250bcd60089e376dce90ff21a9514d",
     "semantic_hash": ""
   }
 }
