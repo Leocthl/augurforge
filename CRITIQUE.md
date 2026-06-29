@@ -1,6 +1,7 @@
 # AugurForge Track 1 Win Notes
 
-Track: **Track 1 - Multiverse Agents only**.
+Track focus: **Track 1 - Multiverse Agents** for product work. The three Discord submissions still stand:
+Multiverse Agents, People's Choice/X post, and Enterprise Impact.
 
 Updated stance: pretend the judge has five minutes, has seen a dozen AI dashboards, and is actively looking for signs that this is mocked, hardcoded, or merely prompt-wrapped. The project wins only if the judge can see Gemma 4 reasoning over real input and Cerebras making a multi-step agent loop feel usable.
 
@@ -109,7 +110,7 @@ What would convince them: detect/report rate-limit headers, use a "free tier saf
 
 11. **The image size limits do not match all tiers.**
 
-`Uploader` accepts images under 6 MB and the proxy allows about 9 MB data URIs. Public docs list lower image limits for free trial and higher limits for developer tier. A judge's uploaded screenshot could be accepted by the browser and rejected upstream.
+`Uploader` accepts images under 6 MB and the proxy body limit is 12 MB. Public docs list lower image limits for free trial and higher limits for developer tier. A judge's uploaded screenshot could be accepted by the browser and rejected upstream.
 
 What would convince them: client-side resize/compress to a safe max, show encoded size, and report estimated image tokens or at least "image prepared for Gemma 4."
 
@@ -433,9 +434,9 @@ Before calling this competitive:
 
 ## Do Not Spend Time On
 
-- Track 3 copy.
-- People's Choice copy.
-- Extra social submission text.
+- Net-new Track 3 copy beyond the existing submission path.
+- Net-new People's Choice/X-post copy beyond the existing submission path.
+- Extra social submission text that does not strengthen the three planned Discord submissions.
 - Editing Person B-owned templates or viz files unless needed for the judge demo.
 - Production finance claims.
 - More generic AI dashboard polish.

@@ -1,6 +1,12 @@
 import type { DashboardSpec, OnEvent, ModelerResult, SliderDef, VisualizerResult } from '../contract';
 import { chat } from '../cerebras';
-import { createGeneratedTemplate, isGeneratedTemplateId, type GeneratedModelerResult } from '../generative';
+import {
+  GENERATED_BLACK_SCHOLES_ID,
+  GENERATED_SIR_ID,
+  createGeneratedTemplate,
+  isGeneratedTemplateId,
+  type GeneratedModelerResult,
+} from '../generative';
 import {
   cleanString,
   errMsg,
@@ -14,7 +20,7 @@ import {
 const SYSTEM =
   'You are AugurForge Visualizer. Given a validated model spec, design the dashboard labels, ' +
   'view choices, and two-depth explainer. Use 3d only when the renderer supports it. ' +
-  'For generated:black-scholes use 2d only. Return only strict JSON DashboardSpec.';
+  'For generated:black-scholes and generated:sir use 2d only. Return only strict JSON DashboardSpec.';
 
 const SLIDER_SCHEMA = objectSchema(
   {
@@ -33,7 +39,7 @@ const RESPONSE_FORMAT = jsonSchema(
   'augurforge_visualizer',
   objectSchema(
     {
-      templateId: stringEnum(['monte-carlo', 'generated:black-scholes']),
+      templateId: stringEnum(['monte-carlo', GENERATED_BLACK_SCHOLES_ID, GENERATED_SIR_ID]),
       title: { type: 'string' },
       subtitle: { type: 'string' },
       sliders: { type: 'array', items: SLIDER_SCHEMA },
@@ -75,11 +81,9 @@ function validate(json: unknown, fallback: DashboardSpec): DashboardSpec {
   if (!isRecord(json)) return fallback;
   const views = sanitizeViews(json.views, fallback.views);
   const defaultView = json.defaultView === '3d' && views.includes('3d') ? '3d' : '2d';
+  const templateId = sanitizeTemplateId(json.templateId, fallback.templateId);
   return {
-    templateId:
-      json.templateId === fallback.templateId || json.templateId === 'monte-carlo' || json.templateId === 'generated:black-scholes'
-        ? String(json.templateId)
-        : fallback.templateId,
+    templateId,
     title: cleanString(json.title, fallback.title, 80),
     subtitle: cleanString(json.subtitle, fallback.subtitle ?? '', 130),
     sliders: sanitizeSliders(json.sliders, fallback.sliders),
@@ -92,6 +96,12 @@ function validate(json: unknown, fallback: DashboardSpec): DashboardSpec {
         }
       : fallback.explainer,
   };
+}
+
+function sanitizeTemplateId(raw: unknown, fallback: string): string {
+  return raw === fallback || raw === 'monte-carlo' || raw === GENERATED_BLACK_SCHOLES_ID || raw === GENERATED_SIR_ID
+    ? String(raw)
+    : fallback;
 }
 
 function sanitizeViews(raw: unknown, fallback: DashboardSpec['views']): DashboardSpec['views'] {

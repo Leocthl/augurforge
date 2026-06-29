@@ -11,6 +11,7 @@ import type {
   AgentId,
   AgentStatus,
   DashboardSpec,
+  ExplainPayload,
   OnEvent,
   ParamSet,
   ProseResult,
@@ -40,6 +41,12 @@ const AGENTS: { id: AgentId; label: string }[] = [
   { id: 'risk', label: 'Gemma Risk' },
   { id: 'explainer', label: 'Gemma Explainer' },
 ];
+
+declare global {
+  interface Window {
+    __AUGURFORGE_EXPLAIN_PAYLOAD__?: ExplainPayload;
+  }
+}
 
 function paramsFromSpec(spec: DashboardSpec): ParamSet {
   return Object.fromEntries(spec.sliders.map((s) => [s.id, s.value]));
@@ -120,6 +127,26 @@ function uncertaintyItems(sim: SimResult): AuditItem[] {
 
 function valueItem(label: string, value: string | undefined): AuditItem | undefined {
   return value ? { label, value } : undefined;
+}
+
+function buildExplainPayload(
+  spec: DashboardSpec,
+  params: ParamSet,
+  sim: SimResult,
+  sensitivityText: string,
+  riskFlags: RiskFlag[],
+): ExplainPayload {
+  return {
+    templateId: spec.templateId,
+    title: spec.title,
+    params,
+    sim: { metrics: sim.metrics, raw: sim.raw },
+    narrative: {
+      sensitivity: sensitivityText || undefined,
+      explainer: spec.explainer,
+      risk: riskFlags,
+    },
+  };
 }
 
 interface Prose {
@@ -306,6 +333,16 @@ export function App() {
   const assumptions = rawStrings(sim.raw ?? {}, 'assumptions').slice(0, 4);
   const warnings = rawStrings(sim.raw ?? {}, 'warnings').slice(0, 3);
 
+  useEffect(() => {
+    window.__AUGURFORGE_EXPLAIN_PAYLOAD__ = buildExplainPayload(
+      spec,
+      params,
+      sim,
+      sensitivity.text,
+      risk.flags,
+    );
+  }, [params, risk.flags, sensitivity.text, sim, spec]);
+
   return (
     <div className="app-shell">
       <aside className="nav-rail">
@@ -347,6 +384,18 @@ export function App() {
             disabled={building}
           >
             Generate model
+          </button>
+          <button
+            className="rail-action"
+            onClick={() =>
+              void runCascade({
+                mode: 'generate',
+                intent: 'Build a non-finance SIR epidemic curve sandbox with susceptible infected recovered sliders',
+              })
+            }
+            disabled={building}
+          >
+            SIR demo
           </button>
           <button
             className="rail-action"

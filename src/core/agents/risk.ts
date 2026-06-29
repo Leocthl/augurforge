@@ -36,6 +36,19 @@ function parseMetric(value: string | undefined): number | undefined {
 }
 
 function mockFlags(ctx: TweakContext): RiskFlag[] {
+  if (ctx.templateId.startsWith('generated:sir')) {
+    const attack = parseMetric(ctx.metrics.find((m) => m.id === 'attack_rate')?.value);
+    const flags: RiskFlag[] = [];
+    if (attack !== undefined && attack >= 50) {
+      flags.push({ level: 'warning', text: `Attack rate ${pct(attack)} is high under this scenario; review calibration before interpreting it.`, ref: 'Scenario metric' });
+    } else {
+      flags.push({ level: 'ok', text: 'SIR outcomes are inside the current scenario slider range.', ref: 'Scenario metric' });
+    }
+    flags.push({ level: 'warning', text: 'Homogeneous mixing and closed-population assumptions are strong simplifications.', ref: 'Model risk' });
+    flags.push({ level: 'ok', text: 'This generated SIR model is decision-support only and is not a medical forecast.', ref: 'Decision-support only' });
+    return flags;
+  }
+
   if (ctx.templateId.startsWith('generated:black-scholes')) {
     const flags: RiskFlag[] = [];
     const vol = ctx.params.volatility ?? 0;

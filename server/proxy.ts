@@ -8,6 +8,7 @@
  * Run with:  npm run server      (or npm run dev:live to run web + proxy together)
  */
 import express from 'express';
+import type { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
@@ -22,8 +23,17 @@ const BASELINE_BASE_URL = process.env.BASELINE_BASE_URL;
 const BASELINE_MODEL = process.env.BASELINE_MODEL;
 const MAX_MESSAGES = 12;
 const MAX_TEXT_CHARS = 12_000;
-const MAX_IMAGE_DATA_URL_CHARS = 9_000_000;
+const MAX_IMAGE_DATA_URL_CHARS = 12_000_000;
 const MAX_TOKENS = 900;
+const RATE_WINDOW_MS = 60_000;
+const RATE_MAX_REQUESTS = 90;
+
+interface RateState {
+  count: number;
+  resetAt: number;
+}
+
+const rateBuckets = new Map<string, RateState>();
 
 const app = express();
 // Restrict CORS to the dev origin so a deployed/forwarded proxy can't have its key quota drained.
@@ -47,10 +57,24 @@ app.get('/api/health', (_req, res) => {
     model: MODEL,
     hasKey: Boolean(API_KEY),
     baselineConfigured: Boolean(BASELINE_API_KEY && BASELINE_BASE_URL && BASELINE_MODEL),
+    rateLimit: {
+      windowMs: RATE_WINDOW_MS,
+      maxRequests: RATE_MAX_REQUESTS,
+    },
   });
 });
 
 app.post('/api/chat', async (req, res) => {
+  const rate = consumeRateLimit(req);
+  applyRateLimitHeaders(res, rate);
+  if (rate.count > RATE_MAX_REQUESTS) {
+    res.status(429).json({
+      error: 'Proxy rate limit exceeded. Wait for the reset window before running another live cascade.',
+      retryAfterMs: Math.max(0, rate.resetAt - Date.now()),
+    });
+    return;
+  }
+
   const wantsBaseline = req.body?.provider === 'baseline';
   const key = wantsBaseline ? BASELINE_API_KEY : API_KEY;
   const baseUrl = wantsBaseline ? BASELINE_BASE_URL : BASE_URL;
@@ -110,6 +134,25 @@ app.post('/api/chat', async (req, res) => {
     });
   }
 });
+
+function consumeRateLimit(req: Request): RateState {
+  const now = Date.now();
+  const key = req.ip || req.socket.remoteAddress || 'local';
+  const current = rateBuckets.get(key);
+  if (!current || current.resetAt <= now) {
+    const next = { count: 1, resetAt: now + RATE_WINDOW_MS };
+    rateBuckets.set(key, next);
+    return next;
+  }
+  current.count += 1;
+  return current;
+}
+
+function applyRateLimitHeaders(res: Response, state: RateState): void {
+  res.setHeader('X-AugurForge-RateLimit-Limit', String(RATE_MAX_REQUESTS));
+  res.setHeader('X-AugurForge-RateLimit-Remaining', String(Math.max(0, RATE_MAX_REQUESTS - state.count)));
+  res.setHeader('X-AugurForge-RateLimit-Reset-Ms', String(Math.max(0, state.resetAt - Date.now())));
+}
 
 function safeChatCompletionsUrl(baseUrl: string): string | null {
   try {

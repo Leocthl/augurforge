@@ -29,6 +29,8 @@ export function jsonSchema(name: string, schema: Record<string, unknown>): objec
     type: 'json_schema',
     json_schema: {
       name,
+      // Cerebras currently rejects several nested schemas in strict mode; keep loose mode
+      // while preserving additionalProperties:false and validating every parsed result locally.
       strict: false,
       schema: cerebrasSchema(schema),
     },
@@ -122,6 +124,11 @@ export function summarizeRawForAgents(raw: Record<string, unknown> | undefined):
   }
   if (Array.isArray(raw.terminal)) out.terminalSampleSize = raw.terminal.length;
   if (Array.isArray(raw.losses)) out.lossSampleSize = raw.losses.length;
+  if (Array.isArray(raw.shapes)) {
+    out.shapeKinds = raw.shapes
+      .map((shape) => (isRecord(shape) && typeof shape.kind === 'string' ? shape.kind : undefined))
+      .filter(Boolean);
+  }
   return out;
 }
 

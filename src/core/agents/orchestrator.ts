@@ -1,7 +1,7 @@
 import type { OnEvent, OrchestratorResult } from '../contract';
 import { chat } from '../cerebras';
 import type { PipelineInput } from '../pipeline';
-import { GENERATED_BLACK_SCHOLES_ID, wantsGeneratedModel } from '../generative';
+import { GENERATED_BLACK_SCHOLES_ID, GENERATED_SIR_ID, wantsGeneratedModel } from '../generative';
 import {
   cleanString,
   describeInput,
@@ -17,14 +17,14 @@ const SYSTEM =
   'You are AugurForge Orchestrator. Route the request to one model path. ' +
   'Use monte-carlo for portfolio ruin, GBM, volatility fan charts, or generic risk simulation. ' +
   'Use generated:black-scholes when the user asks to generate a new model, asks for options, ' +
-  'Black-Scholes, Greeks, or a model outside the current library. ' +
+  'Black-Scholes, or Greeks. Use generated:sir for epidemic, infection, SIR, or non-finance generated demos. ' +
   'Return only strict JSON. This is decision-support, not advice.';
 
 const RESPONSE_FORMAT = jsonSchema(
   'augurforge_orchestrator',
   objectSchema(
     {
-      templateId: stringEnum(['monte-carlo', GENERATED_BLACK_SCHOLES_ID]),
+      templateId: stringEnum(['monte-carlo', GENERATED_BLACK_SCHOLES_ID, GENERATED_SIR_ID]),
       intent: { type: 'string' },
       notes: { type: 'string' },
     },
@@ -34,11 +34,15 @@ const RESPONSE_FORMAT = jsonSchema(
 
 function mockRoute(input: PipelineInput): OrchestratorResult {
   const generated = wantsGeneratedModel(input.intent, input.mode);
+  const text = (input.intent ?? '').toLowerCase();
+  const generatedId = /\b(sir|epidemic|infection|infectious|disease|non[-\s]?finance)\b/.test(text)
+    ? GENERATED_SIR_ID
+    : GENERATED_BLACK_SCHOLES_ID;
   return {
-    templateId: input.templateId ?? (generated ? GENERATED_BLACK_SCHOLES_ID : 'monte-carlo'),
-    intent: input.intent ?? (generated ? 'Build a Black-Scholes option pricing sandbox' : 'Explore portfolio ruin risk under volatility'),
+    templateId: input.templateId ?? (generated ? generatedId : 'monte-carlo'),
+    intent: input.intent ?? (generated ? 'Build a generated deterministic model sandbox' : 'Explore portfolio ruin risk under volatility'),
     notes: generated
-      ? 'Routed to the safe generated-model path for an option-pricing sandbox.'
+      ? 'Routed to the safe generated-model path for a validated declarative sandbox.'
       : 'Matched to the Monte Carlo (GBM) hero template.',
   };
 }
@@ -46,7 +50,7 @@ function mockRoute(input: PipelineInput): OrchestratorResult {
 function validate(json: unknown, fallback: OrchestratorResult): OrchestratorResult {
   if (!isRecord(json)) return fallback;
   const templateId =
-    json.templateId === GENERATED_BLACK_SCHOLES_ID || json.templateId === 'monte-carlo'
+    json.templateId === GENERATED_BLACK_SCHOLES_ID || json.templateId === GENERATED_SIR_ID || json.templateId === 'monte-carlo'
       ? json.templateId
       : fallback.templateId;
   return {
@@ -70,7 +74,7 @@ export async function runOrchestrator(
           role: 'user',
           content:
             describeInput(input) +
-            '\nAvailable reliable paths: monte-carlo, generated:black-scholes. Do not route to unfinished static templates.',
+            '\nAvailable reliable paths: monte-carlo, generated:black-scholes, generated:sir. Do not route to unfinished static templates.',
         },
       ],
       responseFormat: RESPONSE_FORMAT,

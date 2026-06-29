@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { TimeInfo } from '../core/contract';
 import { chat, USE_LIVE, type Provider } from '../core/cerebras';
 
@@ -13,12 +13,22 @@ interface RaceState {
   error?: string;
 }
 
-const RACE_PROMPT = 'In one sentence, summarize the portfolio ruin risk for a board audience.';
-const RACE_MOCK = 'Ruin risk is moderate at current volatility, but the tail grows quickly as σ rises.';
+const RACE_PROMPT =
+  'Read this model request and image summary. Pick the model path, propose sliders, identify two risk flags, and write the first explanation sentence. Request: explore portfolio ruin risk from a loss triangle screenshot. Image summary: cumulative paid triangle, AY rows, development periods, missing future cells.';
+const RACE_MOCK =
+  'Route to Monte Carlo GBM, use volatility/drift/horizon sliders, flag calibration and tail risk, and explain that higher volatility widens the ruin-risk cone.';
 
 export function SpeedHud({ latest }: Props) {
   const [race, setRace] = useState<RaceState>({ running: false });
   const [baselineLive, setBaselineLive] = useState(false);
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!USE_LIVE) return;
@@ -52,8 +62,10 @@ export function SpeedHud({ latest }: Props) {
     };
     try {
       const [cerebras, baseline] = await Promise.all([fire('cerebras'), fire('baseline')]);
+      if (!mounted.current) return;
       setRace({ running: false, cerebras, baseline });
     } catch (err) {
+      if (!mounted.current) return;
       setRace({
         running: false,
         error: err instanceof Error ? err.message : String(err),

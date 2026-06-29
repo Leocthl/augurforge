@@ -15,6 +15,7 @@ import type {
   Series,
   SimResult,
   TemplateModule,
+  VizShape,
 } from '../core/contract';
 import type { PlotData } from 'plotly.js-dist-min';
 import * as THREE from 'three';
@@ -89,6 +90,30 @@ function run(params: ParamSet): SimResult {
   const sortedTerminal = [...sim.terminal].sort((a, b) => a - b);
   const vMin = Math.max(1, Math.min(BARRIER * 0.7, sortedQuantile(sortedTerminal, 0.01) * 0.95));
   const vMax = Math.max(S0 * 1.2, sortedQuantile(sortedTerminal, 0.99) * 1.05);
+  const shapes: VizShape[] = [
+    {
+      kind: 'fan',
+      x: sim.time,
+      bands: [
+        { lower: sim.percentiles[5], upper: sim.percentiles[95] },
+        { lower: sim.percentiles[25], upper: sim.percentiles[75] },
+      ],
+      median: sim.percentiles[50],
+    },
+    {
+      kind: 'distribution',
+      values: sim.losses,
+      markers: [
+        { label: '95% VaR', value: sim.metrics.var95 },
+        { label: '99% VaR', value: sim.metrics.var99 },
+        { label: '95% ES', value: sim.metrics.es95 },
+      ],
+    },
+    {
+      kind: 'curve',
+      series,
+    },
+  ];
 
   return {
     paths: sim.paths,
@@ -106,6 +131,7 @@ function run(params: ParamSet): SimResult {
       time: sim.time,
       s0: S0,
       barrier: BARRIER,
+      shapes,
       terminal: sim.terminal,
       losses: sim.losses,
       maxDrawdowns: sim.maxDrawdowns,

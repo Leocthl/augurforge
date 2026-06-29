@@ -8,6 +8,23 @@ const SYSTEM =
   'Use only supplied params and metrics. Keep it practical and label this as decision-support, not advice.';
 
 function mockText(ctx: TweakContext): string {
+  if (ctx.templateId.startsWith('generated:sir')) {
+    const peak = ctx.metrics.find((m) => m.id === 'peak_infected')?.value ?? 'n/a';
+    const peakDay = ctx.metrics.find((m) => m.id === 'peak_day')?.value ?? 'n/a';
+    const attackRate = ctx.metrics.find((m) => m.id === 'attack_rate')?.value ?? 'n/a';
+    if (ctx.depth === 'expert') {
+      return (
+        `Generated SIR sandbox: population=${ctx.params.population}, initial infected=${ctx.params.initialInfected}, ` +
+        `R0=${ctx.params.reproductionNumber}, recovery=${ctx.params.recoveryDays} days. Peak infected is ${peak} around ${peakDay}, ` +
+        `with final attack rate ${attackRate}. This is deterministic compartment math for scenario exploration, not a medical forecast.`
+      );
+    }
+    return (
+      `Gemma generated this non-finance SIR sandbox, then AugurForge ran deterministic compartment math in the browser. ` +
+      `At the current sliders, infections peak at ${peak} around ${peakDay}; the final attack rate is ${attackRate}.`
+    );
+  }
+
   if (ctx.templateId.startsWith('generated:black-scholes')) {
     const call = ctx.metrics.find((m) => m.id === 'call_price')?.value ?? 'n/a';
     const put = ctx.metrics.find((m) => m.id === 'put_price')?.value ?? 'n/a';

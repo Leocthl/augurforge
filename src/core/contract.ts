@@ -61,6 +61,30 @@ export interface Series {
   y: number[];
 }
 
+/** Standard numeric shapes consumed by generic renderers and Leo's Manim path. */
+export type VizShape =
+  | {
+      kind: 'fan';
+      x: number[];
+      bands: { lower: number[]; upper: number[] }[];
+      median?: number[];
+    }
+  | {
+      kind: 'distribution';
+      values: number[];
+      markers?: { label: string; value: number }[];
+    }
+  | {
+      kind: 'curve';
+      series: { name: string; x: number[]; y: number[] }[];
+    }
+  | {
+      kind: 'surface';
+      x: number[];
+      y: number[];
+      z: number[][];
+    };
+
 /**
  * Deterministic numerical output — ALWAYS computed client-side by TemplateModule.run().
  * Gemma never fabricates these numbers; it only interprets them.
@@ -74,6 +98,25 @@ export interface SimResult {
   metrics: Metric[];
   /** Template-specific extras (terminal distribution, barrier, time axis, …). */
   raw?: Record<string, unknown>;
+}
+
+/** Stable payload for explanation/video consumers; `raw.shapes` carries VizShape[]. */
+export interface ExplainPayload {
+  templateId: string;
+  title: string;
+  params: Record<string, number>;
+  sim: {
+    metrics: Metric[];
+    raw?: {
+      shapes?: VizShape[];
+      [key: string]: unknown;
+    };
+  };
+  narrative: {
+    sensitivity?: string;
+    explainer?: Explainer;
+    risk?: { level: string; text: string; ref?: string }[];
+  };
 }
 
 // ---------------------------------------------------------------------------

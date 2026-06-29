@@ -8,6 +8,21 @@ const SYSTEM =
   'Ground every claim in the provided params and metrics. Decision-support only, not advice.';
 
 function mockText(ctx: TweakContext): string {
+  if (ctx.templateId.startsWith('generated:sir')) {
+    const peak = ctx.metrics.find((m) => m.id === 'peak_infected')?.value ?? 'n/a';
+    if (ctx.changed) {
+      const dir = ctx.changed.to >= ctx.changed.from ? 'raising' : 'lowering';
+      return (
+        `${dir} ${ctx.changed.label ?? ctx.changed.id} moved peak infections to ${peak}. ` +
+        `R0 and recovery time dominate this SIR sandbox because they set the infection and recovery rates.`
+      );
+    }
+    return (
+      `Peak infections are ${peak} under the current SIR assumptions. ` +
+      `R0 is usually the dominant driver, while recovery time controls how long people remain infectious.`
+    );
+  }
+
   if (ctx.templateId.startsWith('generated:black-scholes')) {
     const metric = ctx.metrics.find((m) => m.id === 'call_price')?.value ?? 'n/a';
     if (ctx.changed) {

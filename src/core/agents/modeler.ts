@@ -3,6 +3,7 @@ import { chat, type ContentPart } from '../cerebras';
 import type { PipelineInput } from '../pipeline';
 import {
   GENERATED_BLACK_SCHOLES_ID,
+  GENERATED_SIR_ID,
   fallbackGeneratedSpec,
   wantsGeneratedModel,
   type GeneratedModelerResult,
@@ -22,7 +23,7 @@ import {
 const SYSTEM =
   'You are AugurForge Modeler. Read text, data summaries, and any attached chart image. ' +
   'Infer safe slider defaults and a concise mapping from source fields to model parameters. ' +
-  'For generated:black-scholes, emit a declarative generatedSpec only: modelKind, title, subtitle, sliders, explainer, mapping. ' +
+  'For generated:black-scholes or generated:sir, emit a declarative generatedSpec only: modelKind, title, subtitle, sliders, explainer, mapping. ' +
   'Never write executable code. Return only strict JSON.';
 
 const SLIDER_SCHEMA = objectSchema(
@@ -50,6 +51,11 @@ const PARAMS_SCHEMA = objectSchema(
     rate: { type: 'number' },
     dividendYield: { type: 'number' },
     maturity: { type: 'number' },
+    population: { type: 'number' },
+    initialInfected: { type: 'number' },
+    reproductionNumber: { type: 'number' },
+    recoveryDays: { type: 'number' },
+    horizonDays: { type: 'number' },
   },
   [],
 );
@@ -70,7 +76,7 @@ const MAPPING_SCHEMA = objectSchema(
 const GENERATED_SPEC_SCHEMA = objectSchema(
   {
     id: { type: 'string' },
-    modelKind: stringEnum(['black-scholes']),
+    modelKind: stringEnum(['black-scholes', 'sir']),
     title: { type: 'string' },
     subtitle: { type: 'string' },
     sliders: { type: 'array', items: SLIDER_SCHEMA },
@@ -90,7 +96,7 @@ const RESPONSE_FORMAT = jsonSchema(
   'augurforge_modeler',
   objectSchema(
     {
-      templateId: stringEnum(['monte-carlo', GENERATED_BLACK_SCHOLES_ID]),
+      templateId: stringEnum(['monte-carlo', GENERATED_BLACK_SCHOLES_ID, GENERATED_SIR_ID]),
       params: PARAMS_SCHEMA,
       sliders: { type: 'array', items: SLIDER_SCHEMA },
       mapping: MAPPING_SCHEMA,
@@ -112,7 +118,10 @@ function paramsFromSliders(sliders: SliderDef[]): ParamSet {
 }
 
 function mockModel(input: PipelineInput): GeneratedModelerResult {
-  const generated = wantsGeneratedModel(input.intent, input.mode) || input.templateId === GENERATED_BLACK_SCHOLES_ID;
+  const generated =
+    wantsGeneratedModel(input.intent, input.mode) ||
+    input.templateId === GENERATED_BLACK_SCHOLES_ID ||
+    input.templateId === GENERATED_SIR_ID;
   if (generated) {
     const generatedSpec = fallbackGeneratedSpec(input.intent);
     const sliders = generatedSpec.sliders ?? [];
@@ -136,10 +145,11 @@ function mockModel(input: PipelineInput): GeneratedModelerResult {
 function validate(json: unknown, fallback: GeneratedModelerResult): GeneratedModelerResult {
   if (!isRecord(json)) return fallback;
   const templateId =
-    json.templateId === GENERATED_BLACK_SCHOLES_ID || json.templateId === 'monte-carlo'
+    json.templateId === GENERATED_BLACK_SCHOLES_ID || json.templateId === GENERATED_SIR_ID || json.templateId === 'monte-carlo'
       ? json.templateId
       : fallback.templateId;
-  const fallbackSliders = templateId === GENERATED_BLACK_SCHOLES_ID ? fallbackGeneratedSpec().sliders ?? [] : MONTE_CARLO_SLIDERS;
+  const fallbackSpec = fallback.generatedSpec ?? fallbackGeneratedSpec();
+  const fallbackSliders = templateId.startsWith('generated:') ? fallbackSpec.sliders ?? [] : MONTE_CARLO_SLIDERS;
   const sliders = sanitizeSliders(json.sliders, fallbackSliders);
   return {
     templateId,
@@ -147,19 +157,20 @@ function validate(json: unknown, fallback: GeneratedModelerResult): GeneratedMod
     sliders,
     mapping: sanitizeMapping(json.mapping, fallback.mapping),
     generatedSpec:
-      templateId === GENERATED_BLACK_SCHOLES_ID
-        ? sanitizeGeneratedSpec(json.generatedSpec, fallback.generatedSpec ?? fallbackGeneratedSpec())
+      templateId.startsWith('generated:')
+        ? sanitizeGeneratedSpec(json.generatedSpec, fallbackSpec)
         : fallback.generatedSpec,
   };
 }
 
 function sanitizeGeneratedSpec(raw: unknown, fallback: GeneratedTemplateSpec): GeneratedTemplateSpec {
   if (!isRecord(raw)) return fallback;
+  const modelKind = raw.modelKind === 'sir' || fallback.modelKind === 'sir' ? 'sir' : 'black-scholes';
   return {
-    id: GENERATED_BLACK_SCHOLES_ID,
-    modelKind: raw.modelKind === 'black-scholes' ? 'black-scholes' : 'black-scholes',
-    title: cleanString(raw.title, fallback.title ?? 'Generated Black-Scholes Option Sandbox', 72),
-    subtitle: cleanString(raw.subtitle, fallback.subtitle ?? 'Deterministic Black-Scholes math', 120),
+    id: modelKind === 'sir' ? GENERATED_SIR_ID : GENERATED_BLACK_SCHOLES_ID,
+    modelKind,
+    title: cleanString(raw.title, fallback.title ?? (modelKind === 'sir' ? 'Generated SIR Epidemic Sandbox' : 'Generated Black-Scholes Option Sandbox'), 72),
+    subtitle: cleanString(raw.subtitle, fallback.subtitle ?? (modelKind === 'sir' ? 'Deterministic SIR math' : 'Deterministic Black-Scholes math'), 120),
     sliders: sanitizeSliders(raw.sliders, fallback.sliders ?? []),
     explainer: isRecord(raw.explainer)
       ? {
