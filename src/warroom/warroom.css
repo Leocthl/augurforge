@@ -63,11 +63,22 @@
   color: var(--muted, #5b6472);
   font-variant-numeric: tabular-nums;
 }
+.warroom-stat-strong {
+  color: var(--ink, #1d2330);
+  font-weight: 700;
+}
+.warroom-speed-hero {
+  color: var(--blue, #3b6fb0);
+  font-size: 13px;
+  font-weight: 800;
+}
 .warroom-stat-dim { opacity: 0.7; }
 .warroom-spacer { flex: 1 1 auto; }
 
 .warroom-toggle,
-.warroom-replay {
+.warroom-replay,
+.warroom-live-button,
+.warroom-race-button {
   font: inherit;
   font-size: 12px;
   font-weight: 600;
@@ -80,13 +91,62 @@
   transition: border-color 0.16s, color 0.16s;
 }
 .warroom-toggle:hover,
-.warroom-replay:hover {
+.warroom-replay:hover,
+.warroom-live-button:hover:not(:disabled),
+.warroom-race-button:hover:not(:disabled) {
   border-color: var(--blue, #3b6fb0);
   color: var(--blue, #3b6fb0);
 }
 .warroom-toggle.recording {
   color: #c0352f;
   border-color: #c0352f;
+}
+.warroom-live-button {
+  border-color: rgba(59, 111, 176, 0.34);
+  background: rgba(59, 111, 176, 0.08);
+  color: var(--blue, #3b6fb0);
+}
+.warroom-race-button {
+  border-color: rgba(31, 41, 55, 0.18);
+}
+.warroom-live-button:disabled,
+.warroom-race-button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.warroom-live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--r, 8px);
+  padding: 5px 9px;
+  border: 1px solid rgba(20, 24, 33, 0.12);
+  background: rgba(255, 255, 255, 0.62);
+  color: var(--muted, #5b6472);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+.warroom-live-pill::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #9aa3af;
+}
+.warroom-live-pill.is-live {
+  color: #176343;
+  border-color: rgba(23, 99, 67, 0.22);
+  background: rgba(220, 252, 231, 0.68);
+}
+.warroom-live-pill.is-live::before {
+  background: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.14);
+}
+.warroom-live-pill.is-off {
+  color: #9a3412;
+  border-color: rgba(154, 52, 18, 0.22);
+  background: rgba(255, 247, 237, 0.72);
 }
 
 .warroom-stage {
@@ -117,6 +177,74 @@
   backdrop-filter: blur(12px) saturate(1.1);
   min-height: 0;
   overflow: auto;
+}
+
+.warroom-live-card,
+.warroom-race-card {
+  margin: 12px 12px 0;
+  border: 1px solid var(--line, rgba(20, 24, 33, 0.12));
+  border-radius: var(--r, 8px);
+  background: rgba(255, 255, 255, 0.82);
+  padding: 10px;
+}
+
+.warroom-live-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.warroom-live-card strong,
+.warroom-live-card small,
+.warroom-live-k {
+  display: block;
+}
+
+.warroom-live-card strong {
+  font-size: 13px;
+}
+
+.warroom-live-card small,
+.warroom-live-k {
+  color: var(--muted, #5b6472);
+  font-size: 11px;
+}
+
+.warroom-live-card b {
+  color: var(--blue, #3b6fb0);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.warroom-race-card {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.warroom-race-card p {
+  margin: 9px 0 0;
+}
+
+.warroom-race-grid {
+  display: grid;
+  grid-template-columns: 64px 1fr 1fr;
+  gap: 5px 8px;
+  align-items: baseline;
+}
+
+.warroom-race-grid span {
+  color: var(--muted, #5b6472);
+}
+
+.warroom-race-grid strong {
+  color: var(--ink, #1d2330);
+  font-size: 11px;
+}
+
+.warroom-race-grid b {
+  color: var(--blue, #3b6fb0);
+  font-variant-numeric: tabular-nums;
 }
 
 .warroom-agent-list {

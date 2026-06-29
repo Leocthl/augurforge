@@ -21,12 +21,12 @@ import type { AgentEvent, AgentId, OnEvent, TimeInfo } from '../core/contract';
 import {
   applyEvent,
   initReasoning,
-  mockEventSource,
   realPipelineSource,
   useClipRecorder,
   type EventSource,
   type ReasoningState,
 } from '../explainer';
+import { chat, USE_LIVE, type Provider } from '../core/cerebras';
 import { AGENT_LABEL, AGENT_ORDER, AGENT_RESPONSIBILITY, GROUP_COLOR } from './agents';
 import { clampCamera, focusCamera, panCamera, screenToWorld, zoomAt, type CameraView } from './camera';
 import { buildScene, hitTestDesk, type BoardContext, type SceneLayout } from './scene';
@@ -49,6 +49,32 @@ const SCENARIO_TITLE = 'Portfolio ruin risk — Monte Carlo (GBM)';
 const LIVE_ENV = import.meta.env.VITE_USE_LIVE === 'true';
 const BACKDROP_SRC = `${import.meta.env.BASE_URL}warroom/situation-room-bg.png`;
 const ROLE = GROUP_COLOR;
+const DEFAULT_BASELINE_LABEL = 'OpenRouter · Gemma 4';
+const RACE_PROMPT =
+  'War Room speed proof. For the current AugurForge market-risk situation, summarize the scenario, name the main risk driver, and give one decision-support caveat in 2 short sentences.';
+
+interface LiveHealth {
+  checked: boolean;
+  hasKey: boolean;
+  baselineConfigured: boolean;
+  baselineLabel: string;
+  model: string;
+}
+
+interface RaceLap {
+  totalMs: number;
+  ttftMs?: number;
+  tokensPerSec?: number;
+  text: string;
+  simulated: boolean;
+}
+
+interface RaceState {
+  running: boolean;
+  cerebras?: RaceLap;
+  baseline?: RaceLap;
+  error?: string;
+}
 
 /** Derive each group's live status from the reasoning reducer state. */
 function deriveStatuses(state: ReasoningState): Record<string, GroupStatus> {
@@ -132,12 +158,21 @@ function deriveBoardContext(state: ReasoningState, modeLabel: string, session: A
 }
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+const fmtMs = (ms?: number) => (ms != null ? `${Math.round(ms)} ms` : '—');
+const fmtRate = (n?: number) => (n != null ? `${Math.round(n).toLocaleString()} tok/s` : '—');
 
 export function WarRoom({ source }: { source?: EventSource }) {
   const [latest, setLatest] = useState<{ ttftMs?: number; tokensPerSec?: number }>({});
-  const [useReal, setUseReal] = useState(LIVE_ENV);
   const [figureCount, setFigureCount] = useState(0);
   const [session, setSession] = useState<AugurForgeSessionSnapshot | null>(() => readAugurForgeSession());
+  const [health, setHealth] = useState<LiveHealth>({
+    checked: !LIVE_ENV,
+    hasKey: LIVE_ENV,
+    baselineConfigured: false,
+    baselineLabel: DEFAULT_BASELINE_LABEL,
+    model: 'gemma-4-31b',
+  });
+  const [race, setRace] = useState<RaceState>({ running: false });
   const [selectedAgentId, setSelectedAgentId] = useState<AgentId | null>(null);
   const [hoverAgentId, setHoverAgentId] = useState<AgentId | null>(null);
   const [questionText, setQuestionText] = useState('');
@@ -161,7 +196,7 @@ export function WarRoom({ source }: { source?: EventSource }) {
   const selectedAgentIdRef = useRef<AgentId | null>(selectedAgentId);
   const hoverAgentIdRef = useRef<AgentId | null>(hoverAgentId);
   const questionRunningRef = useRef(questionRunning);
-  const useRealRef = useRef(useReal);
+  const mountedRef = useRef(true);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const sceneRef = useRef<SceneLayout | null>(null);
   const crowdRef = useRef<Crowd | null>(null);
@@ -198,12 +233,40 @@ export function WarRoom({ source }: { source?: EventSource }) {
   }, [questionRunning]);
 
   useEffect(() => {
-    useRealRef.current = useReal;
-  }, [useReal]);
-
-  useEffect(() => {
     setSession(readAugurForgeSession());
     return subscribeAugurForgeSession((snapshot) => setSession(snapshot));
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!LIVE_ENV) return;
+    let cancelled = false;
+    fetch('/api/health')
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        setHealth({
+          checked: true,
+          hasKey: Boolean(data?.hasKey),
+          baselineConfigured: Boolean(data?.baselineConfigured),
+          baselineLabel: typeof data?.baselineLabel === 'string' && data.baselineLabel ? data.baselineLabel : DEFAULT_BASELINE_LABEL,
+          model: typeof data?.model === 'string' && data.model ? data.model : 'gemma-4-31b',
+        });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setHealth((current) => ({ ...current, checked: true, hasKey: false, baselineConfigured: false }));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const run = useCallback(() => {
@@ -217,9 +280,18 @@ export function WarRoom({ source }: { source?: EventSource }) {
     setHistory([]);
     setRenderVersion((value) => value + 1);
     setLatest({});
-    const src = source ?? (useReal ? realPipelineSource('entry', pipelineInputFromSession(sessionRef.current)) : mockEventSource());
+    if (!source && !LIVE_ENV) {
+      onEvent({ agent: 'orchestrator', status: 'start' });
+      onEvent({
+        agent: 'orchestrator',
+        status: 'error',
+        error: 'Live mode is off. Restart with VITE_USE_LIVE=true / npm run dev:live to use Gemma 4 through Cerebras.',
+      });
+      return;
+    }
+    const src = source ?? realPipelineSource('entry', pipelineInputFromSession(sessionRef.current));
     stopRef.current = src.start(onEvent);
-  }, [source, useReal, onEvent]);
+  }, [source, onEvent]);
 
   const statusesForUi = useMemo(() => deriveStatuses(stateRef.current), [renderVersion]);
   const dossiers = useMemo(
@@ -345,11 +417,9 @@ export function WarRoom({ source }: { source?: EventSource }) {
 
         const modeLabel = source
           ? 'Injected event stream'
-          : useRealRef.current
-            ? LIVE_ENV
-              ? 'Live Cerebras Gemma 4'
-              : 'Pipeline path, mock LLM'
-            : 'Mock rehearsal';
+          : LIVE_ENV
+            ? 'Live Cerebras Gemma 4'
+            : 'Live mode off';
         const board = deriveBoardContext(stateRef.current, modeLabel, sessionRef.current);
         const questionBoard = questionBoardRef.current;
         const boardWithQuestion = questionBoard
@@ -406,7 +476,17 @@ export function WarRoom({ source }: { source?: EventSource }) {
     return () => questionStopRef.current?.();
   }, []);
 
-  const pipelineLabel = useReal ? (LIVE_ENV ? 'Live Cerebras' : 'Pipeline mock') : 'Mock cascade';
+  const pipelineLabel = source ? 'Injected event stream' : LIVE_ENV ? 'Live Cerebras Gemma 4' : 'Live mode off';
+  const speedup =
+    race.cerebras?.totalMs && race.baseline?.totalMs ? (race.baseline.totalMs / race.cerebras.totalMs).toFixed(1) : null;
+  const liveStatusText = !LIVE_ENV
+    ? 'Live off: restart with dev:live'
+    : !health.checked
+      ? 'Checking live keys'
+      : health.hasKey
+        ? `LIVE DATA · ${health.model}`
+        : 'Live proxy key missing';
+  const baselineStatusText = health.baselineConfigured ? `${health.baselineLabel} live` : `${health.baselineLabel} not configured`;
 
   const cameraBounds = useCallback(
     () => ({
@@ -564,6 +644,48 @@ export function WarRoom({ source }: { source?: EventSource }) {
     }
   }, [dossiers, history, latest, pipelineLabel, reportBusy]);
 
+  const runRace = useCallback(async () => {
+    if (race.running) return;
+    if (!USE_LIVE) {
+      setRace({ running: false, error: 'Live mode is off. Restart with VITE_USE_LIVE=true / npm run dev:live before racing providers.' });
+      return;
+    }
+    setRace({ running: true });
+    const fire = async (provider: Provider): Promise<RaceLap> => {
+      const start = performance.now();
+      let streamed = '';
+      const res = await chat(
+        {
+          messages: [{ role: 'user', content: RACE_PROMPT }],
+          stream: true,
+          provider,
+          maxTokens: 120,
+          temperature: 0.2,
+        },
+        (token) => {
+          streamed += token;
+        },
+      );
+      const text = (res.text || streamed).replace(/\s+/g, ' ').trim();
+      if (!text) throw new Error(`${provider} returned no Gemma 4 text.`);
+      return {
+        totalMs: Math.round(performance.now() - start),
+        ttftMs: res.timeInfo.ttftMs,
+        tokensPerSec: res.timeInfo.tokensPerSec,
+        text,
+        simulated: Boolean(res.simulated),
+      };
+    };
+    try {
+      const [cerebras, baseline] = await Promise.all([fire('cerebras'), fire('baseline')]);
+      if (!mountedRef.current) return;
+      setRace({ running: false, cerebras, baseline });
+    } catch (err) {
+      if (!mountedRef.current) return;
+      setRace({ running: false, error: err instanceof Error ? err.message : 'Gemma 4 provider race failed' });
+    }
+  }, [race.running]);
+
   const toggleRecord = useCallback(() => {
     if (recorder.recording) recorder.stop();
     else if (canvasRef.current) recorder.start(canvasRef.current);
@@ -579,15 +701,19 @@ export function WarRoom({ source }: { source?: EventSource }) {
           AugurForge
         </a>
         <span className="warroom-badge"><span className="warroom-dot" />Gemma 4 · Cerebras · Situation Room</span>
-        <span className="warroom-stat">TTFT {latest.ttftMs != null ? `${latest.ttftMs} ms` : '—'}</span>
-        <span className="warroom-stat">{latest.tokensPerSec != null ? `${Math.round(latest.tokensPerSec)} tok/s` : ''}</span>
+        <span className={`warroom-live-pill ${LIVE_ENV && health.hasKey ? 'is-live' : 'is-off'}`}>{liveStatusText}</span>
+        <span className="warroom-stat warroom-stat-strong">TTFT {latest.ttftMs != null ? `${latest.ttftMs} ms` : 'waiting'}</span>
+        <span className="warroom-stat warroom-speed-hero">{latest.tokensPerSec != null ? `${Math.round(latest.tokensPerSec).toLocaleString()} tok/s` : 'Gemma output speed pending'}</span>
         <span className="warroom-stat warroom-stat-dim">{figureCount} workers</span>
         <span className="warroom-spacer" />
         {!source && (
-          <button className="warroom-toggle" onClick={() => setUseReal((v) => !v)}>
-            {pipelineLabel}
+          <button className="warroom-live-button" onClick={run} disabled={!LIVE_ENV}>
+            Run live Gemma 4
           </button>
         )}
+        <button className="warroom-race-button" onClick={runRace} disabled={race.running || !LIVE_ENV}>
+          {race.running ? 'Racing...' : 'Race OpenRouter'}
+        </button>
         {recorder.supported && (
           <button className={`warroom-toggle ${recorder.recording ? 'recording' : ''}`} onClick={toggleRecord}>
             {recorder.recording ? 'Stop ●' : 'Record'}
@@ -611,6 +737,35 @@ export function WarRoom({ source }: { source?: EventSource }) {
         </div>
 
         <aside className="warroom-inspector" aria-label="War Room agent inspector">
+          <div className="warroom-live-card">
+            <div>
+              <span className="warroom-live-k">Provider mode</span>
+              <strong>{pipelineLabel}</strong>
+              <small>{baselineStatusText}</small>
+            </div>
+            {speedup && <b>{speedup}× faster on Cerebras</b>}
+          </div>
+          {(race.cerebras || race.baseline || race.error) && (
+            <div className="warroom-race-card">
+              <div className="warroom-race-grid">
+                <span />
+                <strong>Cerebras Gemma 4</strong>
+                <strong>{health.baselineLabel}</strong>
+                <span>TTFT</span>
+                <b>{fmtMs(race.cerebras?.ttftMs)}</b>
+                <b>{fmtMs(race.baseline?.ttftMs)}</b>
+                <span>tokens/s</span>
+                <b>{fmtRate(race.cerebras?.tokensPerSec)}</b>
+                <b>{fmtRate(race.baseline?.tokensPerSec)}</b>
+                <span>wall</span>
+                <b>{fmtMs(race.cerebras?.totalMs)}</b>
+                <b>{fmtMs(race.baseline?.totalMs)}</b>
+              </div>
+              {race.cerebras && <p><strong>Cerebras output:</strong> {race.cerebras.text}</p>}
+              {race.baseline && <p><strong>OpenRouter output:</strong> {race.baseline.text}</p>}
+              {race.error && <p className="warroom-error">{race.error}</p>}
+            </div>
+          )}
           <div className="warroom-agent-list">
             {dossiers.map((dossier) => (
               <button
@@ -636,7 +791,7 @@ export function WarRoom({ source }: { source?: EventSource }) {
           disabled={questionRunning}
         />
         <button type="submit" disabled={questionRunning || !questionText.trim()}>
-          {questionRunning ? 'Thinking' : 'Ask swarm'}
+          {questionRunning ? 'Thinking live' : 'Ask live swarm'}
         </button>
         <button type="button" onClick={openReport} disabled={reportBusy}>
           {reportBusy ? 'Writing report' : 'Export report'}

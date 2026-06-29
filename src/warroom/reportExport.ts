@@ -146,8 +146,10 @@ export function assembleReportHtml(input: ReportHtmlInput): string {
 }
 
 export async function generateReportPreview(input: ReportBriefInput): Promise<GeneratedReport> {
+  if (!USE_LIVE) {
+    throw new Error('Live mode is off. Restart with VITE_USE_LIVE=true / npm run dev:live to generate a Gemma 4 report.');
+  }
   const brief = buildReportBrief(input);
-  const mockText = mockReportNarrative(input);
   const res = await chat({
     messages: [
       {
@@ -161,9 +163,9 @@ export async function generateReportPreview(input: ReportBriefInput): Promise<Ge
     reasoningEffort: 'low',
     temperature: 0.2,
     maxTokens: 900,
-    mock: { text: mockText },
   });
-  const narrative = res.text || mockText;
+  const narrative = res.text.trim();
+  if (!narrative) throw new Error('Gemma 4 returned no report narrative.');
   return {
     html: assembleReportHtml({
       title: input.title,

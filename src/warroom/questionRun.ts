@@ -91,10 +91,13 @@ function emitSectionEvents(sections: Partial<Record<AgentId, string>>, timeInfo:
 export function startQuestionRun(args: StartQuestionRunArgs): () => void {
   const controller = new AbortController();
   const createdAt = Date.now();
+  if (!USE_LIVE) {
+    args.onError('Live mode is off. Restart with VITE_USE_LIVE=true / npm run dev:live to ask Gemma 4 through Cerebras.');
+    return () => controller.abort();
+  }
 
   void (async () => {
     try {
-      const mockText = mockQuestionAnswer(args.question);
       const res = await chat({
         messages: [
           {
@@ -109,10 +112,10 @@ export function startQuestionRun(args: StartQuestionRunArgs): () => void {
         temperature: 0.25,
         maxTokens: 850,
         signal: controller.signal,
-        mock: { text: mockText },
       });
       if (controller.signal.aborted) return;
-      const answer = res.text || mockText;
+      const answer = res.text.trim();
+      if (!answer) throw new Error('Gemma 4 returned no question text.');
       const sections = extractTaggedAgentSections(answer);
       emitSectionEvents(sections, res.timeInfo, args.onEvent);
       args.onComplete({
