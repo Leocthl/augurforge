@@ -40,11 +40,18 @@ describe('report export helpers', () => {
       dossiers: [dossier],
       history: [],
       latest: { ttftMs: 12, tokensPerSec: 2100 },
+      metrics: [{ id: 'p_ruin', label: 'P(ruin)', value: '2.3%' }],
       generatedAt: 1,
     });
 
     expect(html).toContain('Gemma 4');
     expect(html).toContain('Cerebras');
+    expect(html).toContain('dashboard-grid');
+    expect(html).toContain('Agent Statistics');
+    expect(html).toContain('Speed Profile');
+    expect(html).toContain('bar-track');
+    expect(html).toContain('P(ruin)');
+    expect(html).toContain('2.3%');
     expect(html).toContain('&lt;Tail risk is visible&gt;');
     expect(html).not.toContain('<Tail risk is visible>');
   });
