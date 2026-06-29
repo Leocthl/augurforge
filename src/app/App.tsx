@@ -12,6 +12,7 @@ import type {
   AgentStatus,
   DashboardSpec,
   ExplainPayload,
+  ModelerResult,
   OnEvent,
   ParamSet,
   ProseResult,
@@ -31,6 +32,7 @@ import { Renderer, type RendererApi } from './Renderer';
 import { Uploader } from './Uploader';
 import { SpeedHud } from './SpeedHud';
 import { ReasoningPanel, initReasoning, applyEvent, type ReasoningState } from '../explainer';
+import { inputForSession, writeAugurForgeSession } from '../core/sessionContext';
 
 const THEME = 'dark' as const;
 
@@ -183,6 +185,30 @@ function buildExplainPayload(
   };
 }
 
+function eventSummary(e: AgentEvent): string | undefined {
+  if (e.status === 'token' && e.delta) return e.delta.trim();
+  if (e.status === 'error') return e.error;
+  if (e.status !== 'done' || !isRecord(e.result)) return undefined;
+  const text = e.result.text;
+  if (typeof text === 'string' && text.trim()) return text.trim();
+  const mapping = e.result.mapping;
+  if (isRecord(mapping)) {
+    const first = Object.values(mapping).find((value): value is string => typeof value === 'string' && value.trim().length > 0);
+    return first?.trim();
+  }
+  return undefined;
+}
+
+function compactEvent(e: AgentEvent): AgentEvent {
+  return {
+    agent: e.agent,
+    status: e.status,
+    delta: e.delta,
+    error: e.error,
+    timeInfo: e.timeInfo,
+  };
+}
+
 interface Prose {
   text: string;
   time?: TimeInfo;
@@ -216,6 +242,7 @@ export function App() {
   const [latestTime, setLatestTime] = useState<TimeInfo | undefined>(undefined);
   const [building, setBuilding] = useState(false);
   const [reasoning, setReasoning] = useState<ReasoningState>(() => initReasoning(performance.now()));
+  const [modelerMapping, setModelerMapping] = useState<Record<string, string>>({});
 
   // Refs so async streaming callbacks never read stale state.
   const templateRef = useRef(template);
@@ -230,14 +257,24 @@ export function App() {
   const tweakAbortRef = useRef<AbortController | null>(null);
   const chartWrapRef = useRef<HTMLElement>(null);
   const rendererRef = useRef<RendererApi>(null);
+  const latestInputRef = useRef<PipelineInput | undefined>(undefined);
+  const sessionEventsRef = useRef<AgentEvent[]>([]);
 
   // --- the single event sink for the streaming cascade ---
   const onEvent = useCallback((e: AgentEvent) => {
+    sessionEventsRef.current = [...sessionEventsRef.current, compactEvent(e)].slice(-80);
+    const summary = eventSummary(e);
     setReasoning((s) => applyEvent(s, e, performance.now()));
     if (e.timeInfo) setLatestTime(e.timeInfo);
     setAgents((prev) => ({ ...prev, [e.agent]: e.status === 'token' ? 'start' : e.status }));
     if (e.status === 'start') setAgentErrors((prev) => ({ ...prev, [e.agent]: undefined }));
     if (e.status === 'error') setAgentErrors((prev) => ({ ...prev, [e.agent]: e.error ?? 'Agent failed' }));
+    writeAugurForgeSession({
+      input: inputForSession(latestInputRef.current, templateRef.current.spec.templateId),
+      title: templateRef.current.spec.title,
+      ...(summary ? { latestSummary: summary } : {}),
+      events: sessionEventsRef.current,
+    });
 
     if (e.agent === 'explainer') {
       if (e.status === 'start') setExplainer({ text: '' });
@@ -249,6 +286,16 @@ export function App() {
       else if (e.status === 'token') setSensitivity((p) => ({ ...p, text: p.text + (e.delta ?? '') }));
       else if (e.status === 'done')
         setSensitivity({ text: (e.result as ProseResult)?.text ?? '', time: e.timeInfo });
+    } else if (e.agent === 'modeler' && e.status === 'done') {
+      const mapping = (e.result as ModelerResult)?.mapping ?? {};
+      setModelerMapping(mapping);
+      writeAugurForgeSession({
+        input: inputForSession(latestInputRef.current, templateRef.current.spec.templateId),
+        title: templateRef.current.spec.title,
+        modelerMapping: mapping,
+        ...(summary ? { latestSummary: summary } : {}),
+        events: sessionEventsRef.current,
+      });
     } else if (e.agent === 'risk' && e.status === 'done') {
       setRisk({ flags: (e.result as RiskResult)?.flags ?? [], time: e.timeInfo });
     }
@@ -291,6 +338,8 @@ export function App() {
       cascadeAbortRef.current = controller;
       const gen = ++tweakGenRef.current;
       const sink = sinkFor(gen);
+      latestInputRef.current = input;
+      sessionEventsRef.current = [];
       setBuilding(true);
       setExplainer({ text: '' });
       setSensitivity({ text: '' });
@@ -298,7 +347,16 @@ export function App() {
       setReasoning(initReasoning(performance.now()));
       setAgents({});
       setAgentErrors({});
+      setModelerMapping({});
       setGeneratedBuild(null);
+      writeAugurForgeSession({
+        input: inputForSession(input, input.templateId),
+        title: spec.title,
+        modelerMapping: {},
+        metrics: sim.metrics,
+        latestSummary: input.intent ?? 'Building AugurForge model context',
+        events: [],
+      });
       try {
         const res = await runPipeline({ ...input, signal: controller.signal }, sink);
         if (controller.signal.aborted || gen !== tweakGenRef.current) return;
@@ -314,6 +372,13 @@ export function App() {
         setGeneratedBuild(res.generatedTemplate ?? null);
         const s = tmpl.run(p);
         setSim(s);
+        writeAugurForgeSession({
+          input: inputForSession(input, res.spec.templateId),
+          title: res.spec.title,
+          metrics: s.metrics,
+          latestSummary: res.spec.subtitle ?? res.spec.title,
+          events: sessionEventsRef.current,
+        });
         await runTweak(
           {
             templateId: res.spec.templateId,
@@ -442,6 +507,10 @@ export function App() {
   const uncertainty = uncertaintyItems(sim);
   const assumptions = rawStrings(sim.raw ?? {}, 'assumptions').slice(0, 4);
   const warnings = rawStrings(sim.raw ?? {}, 'warnings').slice(0, 3);
+  const inputEvidence = Object.entries(modelerMapping)
+    .filter(([, value]) => value.trim())
+    .slice(0, 6)
+    .map(([label, value]) => ({ label, value }));
   const doneAgentCount = AGENTS.filter((a) => agents[a.id] === 'done').length;
   const insightTabs: { id: InsightTab; label: string; meta: string }[] = [
     { id: 'agents', label: 'Agents', meta: building ? 'live' : `${doneAgentCount}/6` },
@@ -457,7 +526,8 @@ export function App() {
   ];
   const explainerText = explainer.text || spec.explainer?.[depth] || '';
   const sensitivityText = sensitivity.text || 'Move a slider to stream Gemma 4 sensitivity on the changed assumption.';
-  const hasModelAudit = auditItems.length > 0 || uncertainty.length > 0 || assumptions.length > 0 || warnings.length > 0;
+  const hasModelAudit =
+    inputEvidence.length > 0 || auditItems.length > 0 || uncertainty.length > 0 || assumptions.length > 0 || warnings.length > 0;
   const runState = building ? 'Running' : 'Ready';
   const viewLabel = view === '3d' ? '3D density field' : '2D analytical fan';
 
@@ -793,6 +863,16 @@ export function App() {
                     )}
                     {hasModelAudit ? (
                       <>
+                        {inputEvidence.length > 0 && (
+                          <div className="evidence-list">
+                            {inputEvidence.map((item) => (
+                              <div className="evidence-item" key={item.label}>
+                                <span>{item.label}</span>
+                                <b>{item.value}</b>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                         {auditItems.length > 0 && (
                           <div className="audit-grid">
                             {auditItems.map((item) => (

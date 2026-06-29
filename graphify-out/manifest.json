@@ -20,13 +20,13 @@
     "semantic_hash": "bc9c7955becdf2dfc9234b70d41badae"
   },
   "server/proxy.ts": {
-    "mtime": 1782744031.6713548,
-    "ast_hash": "a5980762277a8d48ca15a3f85ba0f12d",
+    "mtime": 1782747143.421512,
+    "ast_hash": "eb6a7e7a67656e37865ed0d7ab7b3673",
     "semantic_hash": ""
   },
   "src/app/App.tsx": {
-    "mtime": 1782744234.6123617,
-    "ast_hash": "5f952c4e95d8a577c989ddef5a9b942b",
+    "mtime": 1782747316.243194,
+    "ast_hash": "ff902589b589b159b25de5839a09c2ee",
     "semantic_hash": ""
   },
   "src/app/Renderer.tsx": {
@@ -40,9 +40,9 @@
     "semantic_hash": ""
   },
   "src/app/Uploader.tsx": {
-    "mtime": 1782724115.8156867,
-    "ast_hash": "e01e74a93ee2fb56b9281ddeb7a0d4bc",
-    "semantic_hash": "e01e74a93ee2fb56b9281ddeb7a0d4bc"
+    "mtime": 1782747143.4239402,
+    "ast_hash": "6fc56f474f0a6175ccaf2e8a6ba42d9e",
+    "semantic_hash": ""
   },
   "src/core/agents/explainer.ts": {
     "mtime": 1782727369.1616898,
@@ -50,9 +50,9 @@
     "semantic_hash": "0a8ea53467b5abef07523ef2a50c8f73"
   },
   "src/core/agents/modeler.ts": {
-    "mtime": 1782727369.1622074,
-    "ast_hash": "d70a5933b55cd8fb013c244b0a8b1d94",
-    "semantic_hash": "d70a5933b55cd8fb013c244b0a8b1d94"
+    "mtime": 1782747143.4258566,
+    "ast_hash": "0408b486a12030b698db965e6606ba28",
+    "semantic_hash": ""
   },
   "src/core/agents/orchestrator.ts": {
     "mtime": 1782727369.1642234,
@@ -70,13 +70,13 @@
     "semantic_hash": "b2cafa22a1aa49bb0961cec59bacff1a"
   },
   "src/core/agents/shared.ts": {
-    "mtime": 1782727369.1678193,
-    "ast_hash": "47ca7035598282e0d223e69e50c281a1",
-    "semantic_hash": "47ca7035598282e0d223e69e50c281a1"
+    "mtime": 1782747143.426865,
+    "ast_hash": "7aa29db885cfc0b94b6f0643c201d0ae",
+    "semantic_hash": ""
   },
   "src/core/agents/visualizer.ts": {
-    "mtime": 1782744031.67547,
-    "ast_hash": "e304bcc1fb49e8fa90ab155507f6ddb8",
+    "mtime": 1782747143.4278657,
+    "ast_hash": "67dbaa19f0cac2c23b9b5e964f63fc34",
     "semantic_hash": ""
   },
   "src/core/cerebras.ts": {
@@ -135,9 +135,9 @@
     "semantic_hash": "a0131bec6d7fffa02361812998eb0713"
   },
   "src/core/pipeline.ts": {
-    "mtime": 1782727369.181955,
-    "ast_hash": "11147144bbed08dde0647687ff25dfc7",
-    "semantic_hash": "11147144bbed08dde0647687ff25dfc7"
+    "mtime": 1782747143.4309106,
+    "ast_hash": "f8a47f80ad62cbf32d88f4c47a4e1ce4",
+    "semantic_hash": ""
   },
   "src/explainer/CascadeTranscript.tsx": {
     "mtime": 1782741121.6218133,
@@ -145,9 +145,9 @@
     "semantic_hash": "9acac40720265abb2f82e5a9f3568084"
   },
   "src/explainer/DepthExplainer.tsx": {
-    "mtime": 1782740124.2337396,
-    "ast_hash": "44f60901f86af834b93e109c8204f095",
-    "semantic_hash": "44f60901f86af834b93e109c8204f095"
+    "mtime": 1782747288.4793866,
+    "ast_hash": "6524f0c3e1db5f8b28a73e412e57efba",
+    "semantic_hash": ""
   },
   "src/explainer/ReasoningPanel.tsx": {
     "mtime": 1782744114.327315,
@@ -175,8 +175,8 @@
     "semantic_hash": "a8d400cfaedcabe9c758e51c2a984cda"
   },
   "src/explainer/liveSource.ts": {
-    "mtime": 1782745111.4961674,
-    "ast_hash": "7f96ca6a4c6d82cdc8b71e0e3191a2fd",
+    "mtime": 1782747272.3044333,
+    "ast_hash": "dc22d31aa87161792196189ccfe1df35",
     "semantic_hash": ""
   },
   "src/explainer/reasoningGraph.test.ts": {
@@ -265,8 +265,8 @@
     "semantic_hash": "249793c4fa5826734d8f763fd78bdf90"
   },
   "src/warroom/WarRoom.tsx": {
-    "mtime": 1782744560.7584643,
-    "ast_hash": "49f02ba7ec49f653ed5315c9ee206ebe",
+    "mtime": 1782747408.260393,
+    "ast_hash": "b071ee38702db3e81474e908e6a937ff",
     "semantic_hash": ""
   },
   "src/warroom/agents.ts": {
@@ -460,8 +460,8 @@
     "semantic_hash": ""
   },
   "DESIGN.md": {
-    "mtime": 1782727369.1507294,
-    "ast_hash": "25a33df050919146d4e9b5276ab4d593",
+    "mtime": 1782747143.417318,
+    "ast_hash": "64d96c5737ad7e20b8fe22e5ecc73026",
     "semantic_hash": ""
   },
   "MATH_ENGINE_UPGRADE_PLAN.md": {
@@ -480,8 +480,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1782744031.6692939,
-    "ast_hash": "7487a4ffe1e1f92ef41341054597b72b",
+    "mtime": 1782747143.4189916,
+    "ast_hash": "59aea59a59ad50593f491452cc36b4b8",
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-06-29-explainer-polish.md": {
@@ -545,8 +545,8 @@
     "semantic_hash": ""
   },
   "dist-explainer/explainer.html": {
-    "mtime": 1782745269.420635,
-    "ast_hash": "4454aec88ad870a278403dd215aad99a",
+    "mtime": 1782745852.4996662,
+    "ast_hash": "bdad76db483a13cf8aefa97101984857",
     "semantic_hash": ""
   },
   "public/warroom/situation-room-bg.png": {
@@ -557,6 +557,51 @@
   "dist-explainer/warroom/situation-room-bg.png": {
     "mtime": 1782744026.5038514,
     "ast_hash": "406562110d1240564e86360062ec8eb6",
+    "semantic_hash": ""
+  },
+  "dist-explainer/assets/explainer-CS3uGk4U.js": {
+    "mtime": 1782745852.4905367,
+    "ast_hash": "d6bd933feb43ca7e4b983903d2f7c8a5",
+    "semantic_hash": ""
+  },
+  "src/core/attachments.test.ts": {
+    "mtime": 1782747143.4283729,
+    "ast_hash": "c0d64dcad9e501929c051802393b65ea",
+    "semantic_hash": ""
+  },
+  "src/core/attachments.ts": {
+    "mtime": 1782747143.4293795,
+    "ast_hash": "2e9d4ed1a30ae1d2af6620e8e04e1989",
+    "semantic_hash": ""
+  },
+  "src/core/sessionContext.ts": {
+    "mtime": 1782747518.026752,
+    "ast_hash": "7c127665a17b2f91c72ae6986bd992bb",
+    "semantic_hash": ""
+  },
+  ".playwright-mcp/page-2026-06-29T15-11-39-899Z.yml": {
+    "mtime": 1782745899.9005249,
+    "ast_hash": "5951d51dd2a3b5f73807af6aecdf8842",
+    "semantic_hash": ""
+  },
+  ".playwright-mcp/page-2026-06-29T15-11-54-127Z.yml": {
+    "mtime": 1782745914.1316082,
+    "ast_hash": "145e99f42dc0148bf26c3e5de2fa3176",
+    "semantic_hash": ""
+  },
+  ".playwright-mcp/page-2026-06-29T15-12-05-923Z.yml": {
+    "mtime": 1782745925.9258595,
+    "ast_hash": "fc35325310139a54280879f0bfc92dae",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-06-29-attachment-system-integration.md": {
+    "mtime": 1782747067.9562857,
+    "ast_hash": "8a3d5f27bdccd9aae4fded906715b802",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-06-29-attachment-system-integration-design.md": {
+    "mtime": 1782747008.0934925,
+    "ast_hash": "ac2dc24a0c80f059fb4ab47978e8a929",
     "semantic_hash": ""
   }
 }

@@ -18,6 +18,13 @@ The whole experience runs offline on mock data: the streaming agent cascade, the
 in 2D + 3D, the sigma/mu/horizon sliders, the Animate toggle, the generated Black-Scholes sandbox,
 and the Cerebras-vs-OpenRouter speed race.
 
+## Uploads
+The composer accepts pasted screenshots plus PNG, JPEG, WebP, SVG, and PDF files. Raster
+screenshots/diagrams are prepared as Gemma 4 vision inputs; oversized images are compressed
+in-browser before the live proxy sees them. PDFs and SVG diagrams are summarized into prompt
+text/metadata so the Modeler can use embedded assumptions even in mock mode. Scanned/image-only PDFs
+should be attached as page screenshots when visual reading is required.
+
 ## Live mode (Gemma-4-31b on Cerebras)
 ```bash
 cp .env.example .env     # then fill in CEREBRAS_API_KEY

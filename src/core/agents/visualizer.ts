@@ -146,6 +146,7 @@ export async function runVisualizer(
             templateId: modeler.templateId,
             params: modeler.params,
             sliders: modeler.sliders,
+            mapping: modeler.mapping,
             generatedSpec: (modeler as GeneratedModelerResult).generatedSpec,
           }),
         },

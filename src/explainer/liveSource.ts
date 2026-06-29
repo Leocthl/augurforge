@@ -11,18 +11,19 @@
  * from their mock implementations. With a key + VITE_USE_LIVE=true the same code path streams live
  * Cerebras tokens — no changes here.
  */
-import { runPipeline, runTweak } from '../core/pipeline';
+import { runPipeline, runTweak, type PipelineInput } from '../core/pipeline';
 import type { AgentEvent, Metric, ParamSet } from '../core/contract';
-import { monteCarlo } from '../templates/monte-carlo';
+import type { DashboardSpec } from '../core/contract';
+import { getTemplate } from '../templates';
 import { liveEventSource, type EventSource } from './eventSource';
 import type { OnEvent } from './types';
 
 export type Depth = 'entry' | 'expert';
 
-/** Default ParamSet straight from the template's declared slider values. */
-function paramsFromSliders(): ParamSet {
+/** Default ParamSet straight from the chosen spec's declared slider values. */
+function paramsFromSpec(spec: DashboardSpec): ParamSet {
   const params: ParamSet = {};
-  for (const slider of monteCarlo.spec.sliders) params[slider.id] = slider.value;
+  for (const slider of spec.sliders) params[slider.id] = slider.value;
   return params;
 }
 
@@ -90,15 +91,15 @@ function enrichProseDone(e: AgentEvent, params: ParamSet, metrics: Metric[], dep
  * A real EventSource backed by the live pipeline. `depth` selects entry/expert prose in runTweak.
  * The returned stop() flips an aborted flag so late agent events are dropped after replay/unmount.
  */
-export function realPipelineSource(depth: Depth = 'entry'): EventSource {
+export function realPipelineSource(depth: Depth = 'entry', input?: PipelineInput): EventSource {
   return liveEventSource((onEvent: OnEvent) => {
     let aborted = false;
-
-    const params = paramsFromSliders();
-    const sim = monteCarlo.run(params);
+    let params: ParamSet = {};
+    let metrics: Metric[] = [];
+    let raw: Record<string, unknown> | undefined;
     const forward: OnEvent = (e) => {
       if (aborted) return;
-      const enriched = enrichProseDone(e, params, sim.metrics, depth, sim.raw);
+      const enriched = enrichProseDone(e, params, metrics, depth, raw);
       if (e.status === 'done' && (e.agent === 'sensitivity' || e.agent === 'explainer') && !resultText(e.result)) {
         onEvent({ agent: e.agent, status: 'token', delta: resultText(enriched.result) });
       }
@@ -107,10 +108,15 @@ export function realPipelineSource(depth: Depth = 'entry'): EventSource {
 
     (async () => {
       try {
-        await runPipeline({ intent: 'Explore portfolio ruin risk' }, forward);
+        const res = await runPipeline(input ?? { intent: 'Explore portfolio ruin risk' }, forward);
         if (aborted) return;
+        const tmpl = res.generatedTemplate?.template ?? getTemplate(res.spec.templateId);
+        params = paramsFromSpec(res.spec);
+        const sim = tmpl.run(params);
+        metrics = sim.metrics;
+        raw = sim.raw;
         await runTweak(
-          { templateId: 'monte-carlo', params, metrics: sim.metrics, raw: sim.raw, depth },
+          { templateId: res.spec.templateId, params, metrics, raw, depth },
           forward,
         );
       } catch (err) {

@@ -155,8 +155,8 @@
     "semantic_hash": ""
   },
   "src/explainer/ThinkingGraph.tsx": {
-    "mtime": 1782745240.6587489,
-    "ast_hash": "607363ece12a9652c5afbc485e041364",
+    "mtime": 1782745396.5062926,
+    "ast_hash": "c48154b4498b7caa4f650109bd3ac028",
     "semantic_hash": ""
   },
   "src/explainer/dev.tsx": {
@@ -557,11 +557,6 @@
   "dist-explainer/warroom/situation-room-bg.png": {
     "mtime": 1782744026.5038514,
     "ast_hash": "406562110d1240564e86360062ec8eb6",
-    "semantic_hash": ""
-  },
-  "dist-explainer/assets/explainer-Oe3PiMiA.js": {
-    "mtime": 1782745269.4196298,
-    "ast_hash": "c6e45a21c3faf2b985fab9f32fc068ba",
     "semantic_hash": ""
   }
 }

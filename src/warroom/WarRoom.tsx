@@ -25,6 +25,12 @@ import { loadGroupTraits } from './traits';
 import { bakeAtlas } from './bakeAtlas';
 import { ambientFor } from './bubbles';
 import { drawScene, type AmbientBubble, type CameraView, type SceneState } from './draw';
+import {
+  pipelineInputFromSession,
+  readAugurForgeSession,
+  subscribeAugurForgeSession,
+  type AugurForgeSessionSnapshot,
+} from '../core/sessionContext';
 
 const SCENARIO_TITLE = 'Portfolio ruin risk — Monte Carlo (GBM)';
 const LIVE_ENV = import.meta.env.VITE_USE_LIVE === 'true';
@@ -47,8 +53,10 @@ function deriveStatuses(state: ReasoningState): Record<string, GroupStatus> {
   return out;
 }
 
-/** Best-effort "latest metric" for the board, read from the graph the reducer grows. */
-function deriveMetric(state: ReasoningState): { label: string; value: string } | null {
+/** Best-effort "latest metric" for the board, preferring the main workbench snapshot. */
+function deriveMetric(state: ReasoningState, session: AugurForgeSessionSnapshot | null): { label: string; value: string } | null {
+  const sessionMetric = session?.metrics?.[0];
+  if (sessionMetric) return { label: sessionMetric.label, value: sessionMetric.value };
   const nodes = state.data.nodes;
   const riskCount = nodes.filter((n) => n.id.startsWith('risk:')).length;
   if (riskCount > 0) return { label: 'Risk flags raised', value: String(riskCount) };
@@ -59,7 +67,22 @@ function deriveMetric(state: ReasoningState): { label: string; value: string } |
   return null;
 }
 
-function deriveBoardContext(state: ReasoningState, modeLabel: string): BoardContext {
+function sessionDetails(session: AugurForgeSessionSnapshot | null): string[] {
+  if (!session) return [];
+  const attachmentNames = session.input?.attachments?.map((attachment) => attachment.name).slice(0, 3) ?? [];
+  const mapping = Object.entries(session.modelerMapping ?? {})
+    .filter(([, value]) => value.trim())
+    .slice(0, 2)
+    .map(([label, value]) => `${label}: ${value}`);
+  const metric = session.metrics?.[0] ? `${session.metrics[0].label}: ${session.metrics[0].value}` : undefined;
+  return [
+    attachmentNames.length ? `Uploaded: ${attachmentNames.join(', ')}` : undefined,
+    metric,
+    ...mapping,
+  ].filter((item): item is string => Boolean(item));
+}
+
+function deriveBoardContext(state: ReasoningState, modeLabel: string, session: AugurForgeSessionSnapshot | null): BoardContext {
   const nodes = state.data.nodes;
   const started = AGENT_ORDER.filter((id) => nodes.some((n) => n.id === id) || id in state.captions).length;
   const done = AGENT_ORDER.filter((id) => {
@@ -75,21 +98,23 @@ function deriveBoardContext(state: ReasoningState, modeLabel: string): BoardCont
   const summary =
     liveCaption.trim() ||
     lastBeat?.text.trim() ||
+    session?.latestSummary ||
     'Six Gemma agents turn the market request into model selection, inferred parameters, risk flags, and explanation.';
 
   const details = [
     `Mode: ${modeLabel}`,
     `Progress: ${started}/${AGENT_ORDER.length} agents started, ${done}/${AGENT_ORDER.length} complete`,
+    ...sessionDetails(session),
     params.length ? `Inputs inferred: ${params.join(', ')}` : `Model focus: ${model}`,
     riskCount > 0 ? `Risk review: ${riskCount} flags on board` : 'Risk review: waiting for tail checks',
   ];
 
   return {
-    title: SCENARIO_TITLE,
+    title: session?.title ?? SCENARIO_TITLE,
     phase: active ? `${AGENT_LABEL[active]} streaming` : done > 0 ? 'Cascade review' : 'Cascade ready',
     summary,
     details,
-    metric: deriveMetric(state),
+    metric: deriveMetric(state, session),
   };
 }
 
@@ -109,9 +134,11 @@ export function WarRoom({ source }: { source?: EventSource }) {
   const [latest, setLatest] = useState<{ ttftMs?: number; tokensPerSec?: number }>({});
   const [useReal, setUseReal] = useState(LIVE_ENV);
   const [figureCount, setFigureCount] = useState(0);
+  const [session, setSession] = useState<AugurForgeSessionSnapshot | null>(() => readAugurForgeSession());
 
   const stopRef = useRef<null | (() => void)>(null);
   const stateRef = useRef<ReasoningState>(initReasoning(performance.now()));
+  const sessionRef = useRef<AugurForgeSessionSnapshot | null>(session);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const sceneRef = useRef<SceneLayout | null>(null);
   const crowdRef = useRef<Crowd | null>(null);
@@ -127,11 +154,20 @@ export function WarRoom({ source }: { source?: EventSource }) {
     if (e.timeInfo) setLatest({ ttftMs: e.timeInfo.ttftMs, tokensPerSec: e.timeInfo.tokensPerSec });
   }, []);
 
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
+  useEffect(() => {
+    setSession(readAugurForgeSession());
+    return subscribeAugurForgeSession((snapshot) => setSession(snapshot));
+  }, []);
+
   const run = useCallback(() => {
     stopRef.current?.();
     stateRef.current = initReasoning(performance.now());
     setLatest({});
-    const src = source ?? (useReal ? realPipelineSource('entry') : mockEventSource());
+    const src = source ?? (useReal ? realPipelineSource('entry', pipelineInputFromSession(sessionRef.current)) : mockEventSource());
     stopRef.current = src.start(onEvent);
   }, [source, useReal, onEvent]);
 
@@ -254,7 +290,7 @@ export function WarRoom({ source }: { source?: EventSource }) {
           cssW,
           cssH,
           t,
-          board: deriveBoardContext(stateRef.current, modeLabel),
+          board: deriveBoardContext(stateRef.current, modeLabel, sessionRef.current),
           ambient: pickAmbient(t, crowd, activeId),
         };
         drawScene(ctx, ss);

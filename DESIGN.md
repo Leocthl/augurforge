@@ -41,7 +41,7 @@ Do not return to lime/cyan neon, purple gradients, or navy/gold finance themes.
 ## Layout
 
 - Left rail: fixed product identity, live/mock status, stack proof, demo moves, decision-support note.
-- Main workspace: topbar, uploader/composer, parameter strip, chart viewport.
+- Main workspace: topbar, evidence-aware uploader/composer, parameter strip, chart viewport.
 - Right rail: speed HUD, metrics, generated model panel, agent cascade, risk, explainer, sensitivity.
 - Keep cards at 8px radius.
 - No nested cards.
@@ -53,6 +53,9 @@ Do not return to lime/cyan neon, purple gradients, or navy/gold finance themes.
 - Buttons: one primary style, one secondary style. Primary actions are dark graphite or blue, not gradients.
 - Segmented controls: active state is a quiet raised white panel.
 - Inputs: white or near-white with a visible border and clear focus ring.
+- Composer input: supports typed intent plus pasted screenshots from the clipboard. Pasted images should become prepared attachment chips, not inline rich text.
+- Attachment control: accepts screenshots, diagrams, and PDFs without becoming a large dropzone. Keep it compact; attached files appear as small removable chips with type and payload/extract metadata.
+- Multimodal evidence: uploaded images, PDF extracts, and diagram text must leave a visible receipt in the Inspector so the user can see what the Gemma Vision Modeler used.
 - Range sliders: blue track, dark thumb, stable height, with a compact exact-value field when precision matters.
 - Chart viewport actions: export, fullscreen, and 3D view presets live as compact dark controls inside the chart frame; keep them clear of the title and give every control a visible focus state.
 - Agent chips: vertical list in the right rail, not a random cloud of pills.
@@ -73,7 +76,7 @@ Do not return to lime/cyan neon, purple gradients, or navy/gold finance themes.
 - Say `Cerebras` where speed is shown.
 - Say `deterministic browser math` where generated models are shown.
 - Keep `decision-support, not advice` visible but quiet.
-- Prefer concrete verbs: generate, attach, tune, stream, compile, race.
+- Prefer concrete verbs: generate, attach, paste, tune, stream, compile, race.
 - Avoid vague phrases like `AI-powered insights`, `unlock value`, or `revolutionary`.
 
 ## Accessibility And Responsiveness

@@ -20,6 +20,12 @@ import { useClipRecorder } from './useClipRecorder';
 import { ThinkingGraph } from './ThinkingGraph';
 import { CascadeTranscript } from './CascadeTranscript';
 import type { AgentId } from './types';
+import {
+  pipelineInputFromSession,
+  readAugurForgeSession,
+  subscribeAugurForgeSession,
+  type AugurForgeSessionSnapshot,
+} from '../core/sessionContext';
 
 type Mode = 'mock' | 'real';
 
@@ -36,9 +42,11 @@ export function DepthExplainer({ source }: Props) {
   const [depth, setDepth] = useState<Depth>('entry');
   const [focused, setFocused] = useState<AgentId | null>(null);
   const [size, setSize] = useState({ w: 800, h: 520 });
+  const [session, setSession] = useState<AugurForgeSessionSnapshot | null>(() => readAugurForgeSession());
   const wrapRef = useRef<HTMLDivElement>(null);
   const stopRef = useRef<null | (() => void)>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const sessionRef = useRef<AugurForgeSessionSnapshot | null>(session);
 
   const recorder = useClipRecorder();
 
@@ -50,6 +58,15 @@ export function DepthExplainer({ source }: Props) {
     ro.observe(el);
     measure();
     return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
+  useEffect(() => {
+    setSession(readAugurForgeSession());
+    return subscribeAugurForgeSession((snapshot) => setSession(snapshot));
   }, []);
 
   const onEvent: OnEvent = useCallback((e: AgentEvent) => {
@@ -66,7 +83,7 @@ export function DepthExplainer({ source }: Props) {
     setState(initReasoning(performance.now()));
     setLatest({});
     setStarted(true);
-    const src = source ?? (mode === 'real' ? realPipelineSource(depth) : mockEventSource({ depth }));
+    const src = source ?? (mode === 'real' ? realPipelineSource(depth, pipelineInputFromSession(sessionRef.current)) : mockEventSource({ depth }));
     stopRef.current = src.start(onEvent);
   }, [source, mode, depth, onEvent]);
 
@@ -140,6 +157,7 @@ export function DepthExplainer({ source }: Props) {
           <span className="explainer-stat">TTFT {latest.ttftMs != null ? `${latest.ttftMs} ms` : '—'}</span>
           <span className="explainer-stat">{latest.tokensPerSec != null ? `${Math.round(latest.tokensPerSec)} tok/s` : ''}</span>
           <span className="explainer-stat">{state.data.nodes.length} nodes</span>
+          {session?.title && <span className="explainer-stat">{session.title}</span>}
           <button className="explainer-replay" onClick={run}>{started ? 'Replay' : 'Run'}</button>
         </div>
         <div className="explainer-caption">
