@@ -3,10 +3,10 @@
  * Render-on-resolve: each agent paints a node as it starts; concept children spawn on done.
  * Node objects are REUSED across updates (slice keeps refs) so the force sim preserves positions.
  */
-import type { AgentEvent, AgentId, GraphData, GNode } from './types';
+import type { AgentEvent, AgentId, GraphData, GNode, ReasoningBeat } from './types';
 import { ROLE_COLOR } from './types';
 
-const AGENT_LABEL: Record<AgentId, string> = {
+export const AGENT_LABEL: Record<AgentId, string> = {
   orchestrator: 'Orchestrator',
   modeler: 'Modeler',
   visualizer: 'Visualizer',
@@ -27,6 +27,7 @@ const UPSTREAM: Record<AgentId, string> = {
 
 export interface ReasoningState {
   data: GraphData;
+  beats: ReasoningBeat[];
   captions: Record<string, string>;
   active: AgentId | null;
 }
@@ -37,6 +38,7 @@ export function initReasoning(now: number): ReasoningState {
       nodes: [{ id: 'input', label: 'Your model', role: 'input', color: ROLE_COLOR.input, size: 9, bornAt: now, pulse: false }],
       links: [],
     },
+    beats: [],
     captions: {},
     active: null,
   };
@@ -54,23 +56,42 @@ function ensureLink(d: GraphData, source: string, target: string): void {
 export function applyEvent(s: ReasoningState, e: AgentEvent, now: number): ReasoningState {
   const d: GraphData = { nodes: s.data.nodes.slice(), links: s.data.links.slice() };
   const captions = { ...s.captions };
+  const beats = s.beats.slice();
   let active = s.active;
   const agent = e.agent as AgentId;
 
+  const upsertBeat = (text: string, status: ReasoningBeat['status']) => {
+    const i = beats.findIndex((b) => b.agent === agent);
+    if (i === -1) beats.push({ agent, text, status });
+    else beats[i] = { agent, text, status };
+  };
+
   if (e.status === 'start') {
     ensureNode(d, { id: agent, label: AGENT_LABEL[agent], role: agent, color: ROLE_COLOR[agent], size: 11, bornAt: now, pulse: true });
+    const node = d.nodes.find((x) => x.id === agent);
+    if (node) node.pulse = true;
     ensureLink(d, UPSTREAM[agent], agent);
     captions[agent] = '';
+    upsertBeat('', 'streaming');
     active = agent;
   } else if (e.status === 'token') {
-    captions[agent] = (captions[agent] ?? '') + (e.delta ?? '');
+    const text = (captions[agent] ?? '') + (e.delta ?? '');
+    captions[agent] = text;
+    upsertBeat(text, 'streaming');
   } else if (e.status === 'done') {
     const node = d.nodes.find((x) => x.id === agent);
     if (node) node.pulse = false;
+    upsertBeat(captions[agent] ?? '', 'done');
     spawnChildren(d, agent, e, now);
     if (active === agent) active = null;
+  } else if (e.status === 'error') {
+    const node = d.nodes.find((x) => x.id === agent);
+    if (node) node.pulse = false;
+    const msg = e.error ?? 'Agent failed';
+    upsertBeat(captions[agent] ? captions[agent] : msg, 'error');
+    if (active === agent) active = null;
   }
-  return { data: d, captions, active };
+  return { data: d, beats, captions, active };
 }
 
 function spawnChildren(d: GraphData, agent: AgentId, e: AgentEvent, now: number): void {
@@ -93,4 +114,16 @@ function spawnChildren(d: GraphData, agent: AgentId, e: AgentEvent, now: number)
   if (agent === 'explainer' || agent === 'sensitivity') {
     child(`insight:${agent}`, agent === 'explainer' ? 'Explanation' : 'Sensitivity', 'insight', 7);
   }
+}
+
+/** Resolve a graph node id to the agent that owns it (for transcript focus). */
+export function agentForNode(id: string): AgentId | null {
+  const agents: AgentId[] = ['orchestrator', 'modeler', 'visualizer', 'sensitivity', 'risk', 'explainer'];
+  if ((agents as string[]).includes(id)) return id as AgentId;
+  if (id.startsWith('model:')) return 'orchestrator';
+  if (id.startsWith('param:')) return 'modeler';
+  if (id.startsWith('risk:')) return 'risk';
+  if (id === 'insight:explainer') return 'explainer';
+  if (id === 'insight:sensitivity') return 'sensitivity';
+  return null;
 }
