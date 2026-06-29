@@ -30,17 +30,9 @@ import { USE_LIVE } from '../core/cerebras';
 import { Renderer, type RendererApi } from './Renderer';
 import { Uploader } from './Uploader';
 import { SpeedHud } from './SpeedHud';
+import { ReasoningPanel, initReasoning, applyEvent, type ReasoningState } from '../explainer';
 
 const THEME = 'dark' as const;
-
-const AGENTS: { id: AgentId; label: string }[] = [
-  { id: 'orchestrator', label: 'Gemma Orchestrator' },
-  { id: 'modeler', label: 'Gemma Vision Modeler' },
-  { id: 'visualizer', label: 'Gemma Visualizer' },
-  { id: 'sensitivity', label: 'Gemma Sensitivity' },
-  { id: 'risk', label: 'Gemma Risk' },
-  { id: 'explainer', label: 'Gemma Explainer' },
-];
 
 declare global {
   interface Window {
@@ -205,12 +197,12 @@ export function App() {
   const [chartActionError, setChartActionError] = useState<string | null>(null);
 
   const [agents, setAgents] = useState<Partial<Record<AgentId, AgentStatus>>>({});
-  const [agentErrors, setAgentErrors] = useState<Partial<Record<AgentId, string>>>({});
   const [explainer, setExplainer] = useState<Prose>({ text: '' });
   const [sensitivity, setSensitivity] = useState<Prose>({ text: '' });
   const [risk, setRisk] = useState<{ flags: RiskFlag[]; time?: TimeInfo }>({ flags: [] });
   const [latestTime, setLatestTime] = useState<TimeInfo | undefined>(undefined);
   const [building, setBuilding] = useState(false);
+  const [reasoning, setReasoning] = useState<ReasoningState>(() => initReasoning(performance.now()));
 
   // Refs so async streaming callbacks never read stale state.
   const templateRef = useRef(template);
@@ -228,10 +220,9 @@ export function App() {
 
   // --- the single event sink for the streaming cascade ---
   const onEvent = useCallback((e: AgentEvent) => {
+    setReasoning((s) => applyEvent(s, e, performance.now()));
     if (e.timeInfo) setLatestTime(e.timeInfo);
     setAgents((prev) => ({ ...prev, [e.agent]: e.status === 'token' ? 'start' : e.status }));
-    if (e.status === 'start') setAgentErrors((prev) => ({ ...prev, [e.agent]: undefined }));
-    if (e.status === 'error') setAgentErrors((prev) => ({ ...prev, [e.agent]: e.error ?? 'Agent failed' }));
 
     if (e.agent === 'explainer') {
       if (e.status === 'start') setExplainer({ text: '' });
@@ -289,8 +280,8 @@ export function App() {
       setExplainer({ text: '' });
       setSensitivity({ text: '' });
       setRisk({ flags: [] });
+      setReasoning(initReasoning(performance.now()));
       setAgents({});
-      setAgentErrors({});
       setGeneratedBuild(null);
       try {
         const res = await runPipeline({ ...input, signal: controller.signal }, sink);
@@ -730,32 +721,7 @@ export function App() {
               </div>
             )}
 
-            <div className="panel agent-panel">
-              <div className="panel-head">
-                <span className="panel-title">Gemma agent cascade</span>
-                {building && <span className="panel-time">streaming</span>}
-              </div>
-              <div className="cascade">
-                {AGENTS.map((a) => (
-                  <span key={a.id} className={`agent-chip ${agents[a.id] ?? ''}`}>
-                    <span className="led" />
-                    {a.label}
-                  </span>
-                ))}
-              </div>
-              {Object.entries(agentErrors).some(([, message]) => message) && (
-                <div className="agent-errors">
-                  {Object.entries(agentErrors).map(([agent, message]) =>
-                    message ? (
-                      <div className="agent-error" key={agent}>
-                        <b>{agent}</b>
-                        <span>{message}</span>
-                      </div>
-                    ) : null,
-                  )}
-                </div>
-              )}
-            </div>
+            <ReasoningPanel state={reasoning} building={building} latest={latestTime} />
 
             {(risk.flags.length > 0 || agents.risk) && (
               <div className="panel">
