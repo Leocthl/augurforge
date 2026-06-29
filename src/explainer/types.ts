@@ -30,9 +30,11 @@ export interface GNode {
   z?: number;
 }
 
+export type GLinkEndpoint = string | GNode;
+
 export interface GLink {
-  source: string;
-  target: string;
+  source: GLinkEndpoint;
+  target: GLinkEndpoint;
 }
 
 export interface GraphData {

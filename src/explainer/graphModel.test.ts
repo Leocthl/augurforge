@@ -36,6 +36,16 @@ describe('graphModel', () => {
     expect(detail?.related.map((node) => node.id)).toContain('modeler');
   });
 
+  it('inspects related nodes after force graph mutates links to object endpoints', () => {
+    const mutatedData: GraphData = {
+      nodes: data.nodes,
+      links: [{ source: data.nodes[1], target: data.nodes[2] }],
+    };
+
+    const detail = inspectNode(mutatedData, beats, 'param:sigma');
+    expect(detail?.related).toContainEqual(expect.objectContaining({ id: 'modeler', relation: 'upstream' }));
+  });
+
   it('extracts sentence refs with related insight and metric nodes', () => {
     const refs = sentenceRefsFromState(data, beats);
     expect(refs[0]).toMatchObject({ agent: 'explainer', text: 'Volatility widens the cone.' });
