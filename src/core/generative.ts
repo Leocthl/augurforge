@@ -17,6 +17,7 @@ import type {
   SliderDef,
   TemplateModule,
 } from './contract';
+import { blackScholes, impliedVolatility } from './math/black-scholes';
 
 export const GENERATED_BLACK_SCHOLES_ID = 'generated:black-scholes';
 
@@ -46,14 +47,15 @@ const DEFAULT_SLIDERS: SliderDef[] = [
   { id: 'strike', label: 'Strike price', min: 50, max: 160, step: 1, value: 105, unit: '' },
   { id: 'volatility', label: 'Volatility', min: 5, max: 80, step: 1, value: 24, unit: '%' },
   { id: 'rate', label: 'Risk-free rate', min: 0, max: 12, step: 0.25, value: 4.5, unit: '%' },
+  { id: 'dividendYield', label: 'Dividend yield', min: 0, max: 8, step: 0.25, value: 0, unit: '%' },
   { id: 'maturity', label: 'Maturity', min: 0.1, max: 5, step: 0.1, value: 1, unit: 'yr' },
 ];
 
 const FALLBACK_EXPLAINER: Explainer = {
   entry:
-    'This generated sandbox prices a non-dividend-paying European option from spot, strike, volatility, rate, and maturity. The curves show how call and put values move as the underlying price changes.',
+    'This generated sandbox prices a European option from spot, strike, volatility, rates, dividend yield, and maturity. The curves show how call and put values move as the underlying price changes.',
   expert:
-    'Black-Scholes assumes no dividends, lognormal returns, constant volatility, continuous compounding, and European exercise. The dashboard shows closed-form call/put prices plus first-order Greeks for sensitivity review.',
+    'Black-Scholes assumes lognormal returns, constant volatility, continuous compounding, continuous dividend yield, and European exercise. The dashboard shows closed-form call/put prices, Greeks, parity residual, and an implied-volatility round trip.',
 };
 
 export function wantsGeneratedModel(intent?: string, mode?: string): boolean {
@@ -216,46 +218,30 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value));
 }
 
-function normalCdf(x: number): number {
-  const sign = x < 0 ? -1 : 1;
-  const z = Math.abs(x) / Math.sqrt(2);
-  const t = 1 / (1 + 0.3275911 * z);
-  const erf =
-    sign *
-    (1 -
-      (((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t +
-        0.254829592) *
-        t *
-        Math.exp(-z * z)));
-  return 0.5 * (1 + erf);
-}
-
-function normalPdf(x: number): number {
-  return Math.exp(-0.5 * x * x) / Math.sqrt(2 * Math.PI);
-}
-
-function optionPrices(spot: number, strike: number, volatility: number, rate: number, maturity: number) {
-  const sigma = Math.max(0.0001, volatility / 100);
-  const r = rate / 100;
-  const t = Math.max(0.0001, maturity);
-  const sqrtT = Math.sqrt(t);
-  const d1 = (Math.log(spot / strike) + (r + 0.5 * sigma * sigma) * t) / (sigma * sqrtT);
-  const d2 = d1 - sigma * sqrtT;
-  const discount = Math.exp(-r * t);
-  const call = spot * normalCdf(d1) - strike * discount * normalCdf(d2);
-  const put = strike * discount * normalCdf(-d2) - spot * normalCdf(-d1);
-  const delta = normalCdf(d1);
-  const vega = (spot * normalPdf(d1) * sqrtT) / 100;
-  return { call, put, delta, vega, d1, d2 };
-}
-
 function runBlackScholes(params: ParamSet): SimResult {
   const spot = Math.max(0.01, params.spot ?? 100);
   const strike = Math.max(0.01, params.strike ?? 105);
   const volatility = clamp(params.volatility ?? 24, 1, 200);
   const rate = clamp(params.rate ?? 4.5, -20, 30);
+  const dividendYield = clamp(params.dividendYield ?? 0, 0, 30);
   const maturity = clamp(params.maturity ?? 1, 0.01, 30);
-  const current = optionPrices(spot, strike, volatility, rate, maturity);
+  const current = blackScholes({
+    spot,
+    strike,
+    volatility: volatility / 100,
+    rate: rate / 100,
+    dividendYield: dividendYield / 100,
+    maturity,
+  });
+  const impliedVol = impliedVolatility({
+    optionType: 'call',
+    targetPrice: current.call,
+    spot,
+    strike,
+    rate: rate / 100,
+    dividendYield: dividendYield / 100,
+    maturity,
+  });
 
   const xMin = Math.max(1, spot * 0.45);
   const xMax = spot * 1.65;
@@ -265,7 +251,14 @@ function runBlackScholes(params: ParamSet): SimResult {
   const put: number[] = [];
   for (let i = 0; i <= steps; i++) {
     const s = xMin + ((xMax - xMin) * i) / steps;
-    const p = optionPrices(s, strike, volatility, rate, maturity);
+    const p = blackScholes({
+      spot: s,
+      strike,
+      volatility: volatility / 100,
+      rate: rate / 100,
+      dividendYield: dividendYield / 100,
+      maturity,
+    });
     x.push(s);
     call.push(p.call);
     put.push(p.put);
@@ -274,8 +267,12 @@ function runBlackScholes(params: ParamSet): SimResult {
   const metrics: Metric[] = [
     { id: 'call_price', label: 'Call price', value: money(current.call) },
     { id: 'put_price', label: 'Put price', value: money(current.put) },
-    { id: 'delta', label: 'Call delta', value: current.delta.toFixed(2) },
-    { id: 'vega', label: 'Vega / vol pt', value: money(current.vega) },
+    { id: 'call_delta', label: 'Call delta', value: current.callDelta.toFixed(2) },
+    { id: 'put_delta', label: 'Put delta', value: current.putDelta.toFixed(2) },
+    { id: 'gamma', label: 'Gamma', value: current.gamma.toFixed(4) },
+    { id: 'vega', label: 'Vega / vol pt', value: money(current.vega / 100) },
+    { id: 'theta', label: 'Call theta / yr', value: money(current.callTheta) },
+    { id: 'rho', label: 'Call rho / rate pt', value: money(current.callRho / 100) },
   ];
 
   return {
@@ -291,14 +288,28 @@ function runBlackScholes(params: ParamSet): SimResult {
       strike,
       volatility,
       rate,
+      dividendYield,
       maturity,
-      dividendYield: 0,
       call: current.call,
       put: current.put,
-      delta: current.delta,
+      callDelta: current.callDelta,
+      putDelta: current.putDelta,
+      gamma: current.gamma,
       vega: current.vega,
+      callTheta: current.callTheta,
+      putTheta: current.putTheta,
+      callRho: current.callRho,
+      putRho: current.putRho,
       d1: current.d1,
       d2: current.d2,
+      parityResidual: current.parityResidual,
+      impliedVolatilityFromCall: impliedVol,
+      warnings: current.warnings,
+      assumptions: [
+        'European exercise with no early-exercise premium.',
+        'Lognormal underlying returns with constant volatility and continuously compounded rates.',
+        'Dividend yield is continuous and deterministic.',
+      ],
       xMin,
       xMax,
       yMax: Math.max(...call, ...put, 1),

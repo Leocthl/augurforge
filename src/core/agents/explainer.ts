@@ -1,7 +1,7 @@
 import type { OnEvent, ProseResult } from '../contract';
 import { chat } from '../cerebras';
 import type { TweakContext } from '../pipeline';
-import { errMsg, isAbortError } from './shared';
+import { errMsg, isAbortError, summarizeRawForAgents } from './shared';
 
 const SYSTEM =
   'You are AugurForge Explainer. Write a clear streaming narrative at the requested depth, entry or expert. ' +
@@ -11,12 +11,13 @@ function mockText(ctx: TweakContext): string {
   if (ctx.templateId.startsWith('generated:black-scholes')) {
     const call = ctx.metrics.find((m) => m.id === 'call_price')?.value ?? 'n/a';
     const put = ctx.metrics.find((m) => m.id === 'put_price')?.value ?? 'n/a';
-    const delta = ctx.metrics.find((m) => m.id === 'delta')?.value ?? 'n/a';
+    const delta = ctx.metrics.find((m) => m.id === 'call_delta')?.value ?? 'n/a';
     if (ctx.depth === 'expert') {
       return (
         `Generated Black-Scholes sandbox: spot=${ctx.params.spot}, strike=${ctx.params.strike}, vol=${ctx.params.volatility}%, ` +
-        `rate=${ctx.params.rate}%, maturity=${ctx.params.maturity}y. The call is ${call}, the put is ${put}, and call delta is ${delta}. ` +
-        `Treat this as a fast closed-form sensitivity view; no dividends, constant volatility, European exercise, and continuous compounding are assumptions to review.`
+        `rate=${ctx.params.rate}%, dividend yield=${ctx.params.dividendYield ?? 0}%, maturity=${ctx.params.maturity}y. ` +
+        `The call is ${call}, the put is ${put}, and call delta is ${delta}. Treat this as a fast closed-form sensitivity view; ` +
+        `constant volatility, European exercise, and continuous compounding are assumptions to review.`
       );
     }
     return (
@@ -27,13 +28,15 @@ function mockText(ctx: TweakContext): string {
 
   const ruin = ctx.metrics.find((m) => m.id === 'p_ruin')?.value ?? 'n/a';
   const varMetric = ctx.metrics.find((m) => m.id === 'var_95')?.value ?? 'n/a';
+  const esMetric = ctx.metrics.find((m) => m.id === 'es_95')?.value ?? 'n/a';
+  const audit = summarizeRawForAgents(ctx.raw);
+  const nPaths = typeof audit.nPaths === 'number' ? audit.nPaths.toLocaleString() : 'seeded';
   const sigma = ctx.params.sigma;
   if (ctx.depth === 'expert') {
     return (
       `Under geometric Brownian motion with σ=${sigma}% and drift μ=${ctx.params.drift}%, the ` +
-      `${ctx.params.horizon}-year terminal distribution is right-skewed. The 5th-percentile loss ` +
-      `(95% VaR) is ${varMetric}; modelled ruin probability is ${ruin}. The tail is volatility-driven: ` +
-      `Higher σ usually raises barrier and left-tail risk sharply; drift shifts the whole distribution and partly offsets that pressure.`
+      `${ctx.params.horizon}-year terminal distribution is right-skewed. Metrics use ${nPaths} daily paths with antithetic variates and Brownian-bridge barrier correction. ` +
+      `The 95% VaR is ${varMetric}, 95% ES is ${esMetric}, and modelled ruin probability is ${ruin}. Higher σ usually raises barrier and left-tail risk sharply.`
     );
   }
   return (
@@ -52,7 +55,16 @@ export async function runExplainer(ctx: TweakContext, onEvent: OnEvent): Promise
       {
         messages: [
           { role: 'system', content: SYSTEM },
-          { role: 'user', content: JSON.stringify({ templateId: ctx.templateId, depth: ctx.depth ?? 'entry', params: ctx.params, metrics: ctx.metrics }) },
+          {
+            role: 'user',
+            content: JSON.stringify({
+              templateId: ctx.templateId,
+              depth: ctx.depth ?? 'entry',
+              params: ctx.params,
+              metrics: ctx.metrics,
+              modelAudit: summarizeRawForAgents(ctx.raw),
+            }),
+          },
         ],
         stream: true,
         reasoningEffort: 'low',

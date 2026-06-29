@@ -49,6 +49,79 @@ function formatVal(v: number, s: SliderDef): string {
   return `${v}${s.unit ?? ''}`;
 }
 
+interface AuditItem {
+  label: string;
+  value: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function rawNumber(raw: Record<string, unknown>, key: string): number | undefined {
+  const value = raw[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function rawString(raw: Record<string, unknown>, key: string): string | undefined {
+  const value = raw[key];
+  return typeof value === 'string' && value ? value : undefined;
+}
+
+function rawStrings(raw: Record<string, unknown>, key: string): string[] {
+  const value = raw[key];
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function intLabel(value: number | undefined): string | undefined {
+  return value == null ? undefined : Math.round(value).toLocaleString();
+}
+
+function pctInterval(value: unknown): string | undefined {
+  if (!isRecord(value)) return undefined;
+  const lower = rawNumber(value, 'lower');
+  const upper = rawNumber(value, 'upper');
+  if (lower == null || upper == null) return undefined;
+  return `${(lower * 100).toFixed(1)}% - ${(upper * 100).toFixed(1)}%`;
+}
+
+function modelAuditItems(sim: SimResult): AuditItem[] {
+  const raw = sim.raw ?? {};
+  const calibration = isRecord(raw.calibration) ? raw.calibration : undefined;
+  const calibrationSource = calibration?.source === 'manual-sliders' ? 'Manual sliders' : rawString(raw, 'calibrationSource');
+  const renderPathCount = rawNumber(raw, 'renderPathCount');
+  const conePathCount = rawNumber(raw, 'conePathCount');
+  const items: Array<AuditItem | undefined> = [
+    valueItem('Model', rawString(raw, 'modelFamily') ?? rawString(raw, 'modelKind')),
+    valueItem('Metric paths', intLabel(rawNumber(raw, 'nPaths'))),
+    valueItem(
+      'Rendered sample',
+      renderPathCount == null
+        ? undefined
+        : `${renderPathCount.toLocaleString()} paths${conePathCount ? `, ${conePathCount.toLocaleString()} cone` : ''}`,
+    ),
+    valueItem('Time step', rawNumber(raw, 'stepsPerYear') ? `${rawNumber(raw, 'stepsPerYear')} / yr` : undefined),
+    valueItem('Seed', intLabel(rawNumber(raw, 'seed'))),
+    valueItem('Calibration', calibrationSource),
+    valueItem('Monitoring', rawString(raw, 'monitoring')),
+  ];
+  return items.filter((item): item is AuditItem => Boolean(item));
+}
+
+function uncertaintyItems(sim: SimResult): AuditItem[] {
+  const uncertainty = isRecord(sim.raw?.uncertainty) ? sim.raw.uncertainty : undefined;
+  if (!uncertainty) return [];
+  return [
+    valueItem('P(ruin) 95% CI', pctInterval(uncertainty.ruinProbability)),
+    valueItem('VaR 95% CI', pctInterval(uncertainty.var95)),
+    valueItem('ES 95% CI', pctInterval(uncertainty.es95)),
+  ].filter((item): item is AuditItem => Boolean(item));
+}
+
+function valueItem(label: string, value: string | undefined): AuditItem | undefined {
+  return value ? { label, value } : undefined;
+}
+
 interface Prose {
   text: string;
   time?: TimeInfo;
@@ -81,7 +154,6 @@ export function App() {
   paramsRef.current = params;
   depthRef.current = depth;
 
-  const dragTimer = useRef<number | undefined>(undefined);
   const dragStart = useRef<{ id: string; from: number } | null>(null);
   const cascadeAbortRef = useRef<AbortController | null>(null);
   const tweakAbortRef = useRef<AbortController | null>(null);
@@ -167,7 +239,14 @@ export function App() {
         const s = tmpl.run(p);
         setSim(s);
         await runTweak(
-          { templateId: res.spec.templateId, params: p, metrics: s.metrics, depth: depthRef.current, signal: controller.signal },
+          {
+            templateId: res.spec.templateId,
+            params: p,
+            metrics: s.metrics,
+            raw: s.raw,
+            depth: depthRef.current,
+            signal: controller.signal,
+          },
           sink,
         );
       } finally {
@@ -186,7 +265,6 @@ export function App() {
   // Clear any pending debounced recompute on unmount.
   useEffect(
     () => () => {
-      window.clearTimeout(dragTimer.current);
       cascadeAbortRef.current?.abort();
       tweakAbortRef.current?.abort();
     },
@@ -202,12 +280,9 @@ export function App() {
     const next = { ...paramsRef.current, [id]: value };
     paramsRef.current = next;
     setParams(next);
-    window.clearTimeout(dragTimer.current);
-    dragTimer.current = window.setTimeout(() => recompute(next), 110);
   };
 
   const onSliderRelease = (id: string) => {
-    window.clearTimeout(dragTimer.current);
     const p = paramsRef.current;
     const s = recompute(p);
     const slider = spec.sliders.find((x) => x.id === id);
@@ -215,17 +290,21 @@ export function App() {
       ? { id, label: slider?.label, from: dragStart.current.from, to: p[id] }
       : undefined;
     dragStart.current = null;
-    runTweakWithAbort({ templateId: spec.templateId, params: p, metrics: s.metrics, depth: depthRef.current, changed });
+    runTweakWithAbort({ templateId: spec.templateId, params: p, metrics: s.metrics, raw: s.raw, depth: depthRef.current, changed });
   };
 
   const onDepth = (d: 'entry' | 'expert') => {
     setDepth(d);
     depthRef.current = d;
-    runTweakWithAbort({ templateId: spec.templateId, params: paramsRef.current, metrics: sim.metrics, depth: d });
+    runTweakWithAbort({ templateId: spec.templateId, params: paramsRef.current, metrics: sim.metrics, raw: sim.raw, depth: d });
   };
 
   const showViewToggle = spec.views.length > 1;
   const stackMode = USE_LIVE ? 'Live Cerebras' : 'Mock rehearsal';
+  const auditItems = modelAuditItems(sim);
+  const uncertainty = uncertaintyItems(sim);
+  const assumptions = rawStrings(sim.raw ?? {}, 'assumptions').slice(0, 4);
+  const warnings = rawStrings(sim.raw ?? {}, 'warnings').slice(0, 3);
 
   return (
     <div className="app-shell">
@@ -392,6 +471,41 @@ export function App() {
                 ))}
               </div>
             </div>
+
+            {(auditItems.length > 0 || uncertainty.length > 0 || assumptions.length > 0 || warnings.length > 0) && (
+              <div className="panel audit-panel">
+                <div className="panel-head">
+                  <span className="panel-title">Model audit</span>
+                </div>
+                {auditItems.length > 0 && (
+                  <div className="audit-grid">
+                    {auditItems.map((item) => (
+                      <div className="audit-item" key={item.label}>
+                        <span>{item.label}</span>
+                        <b>{item.value}</b>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {uncertainty.length > 0 && (
+                  <div className="audit-lines">
+                    {uncertainty.map((item) => (
+                      <div className="audit-line" key={item.label}>
+                        <span>{item.label}</span>
+                        <b>{item.value}</b>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {(assumptions.length > 0 || warnings.length > 0) && (
+                  <div className="assumption-list">
+                    {[...assumptions, ...warnings].map((item) => (
+                      <span key={item}>{item}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {generatedBuild && (
               <div className="panel generated-panel">

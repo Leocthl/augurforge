@@ -1,7 +1,7 @@
 import type { OnEvent, RiskResult, RiskFlag } from '../contract';
 import { chat } from '../cerebras';
 import type { TweakContext } from '../pipeline';
-import { errMsg, isAbortError, isRecord, jsonSchema, objectSchema, pct, stringEnum } from './shared';
+import { errMsg, isAbortError, isRecord, jsonSchema, objectSchema, pct, stringEnum, summarizeRawForAgents } from './shared';
 
 const SYSTEM =
   'You are AugurForge Risk. Given the scenario and deterministic metrics, return strict JSON ' +
@@ -48,11 +48,13 @@ function mockFlags(ctx: TweakContext): RiskFlag[] {
     if (maturity >= 3) {
       flags.push({ level: 'warning', text: 'Long maturity increases assumption risk from constant volatility and rates.', ref: 'Model risk' });
     }
-    flags.push({ level: 'warning', text: 'No-dividend European exercise and constant-volatility assumptions must be governance-reviewed before use.', ref: 'Decision-support only' });
+    flags.push({ level: 'warning', text: 'European exercise, continuous dividend yield, and constant-volatility assumptions must be governance-reviewed before use.', ref: 'Decision-support only' });
     return flags;
   }
 
   const ruin = parseMetric(ctx.metrics.find((m) => m.id === 'p_ruin')?.value);
+  const raw = summarizeRawForAgents(ctx.raw);
+  const nPaths = typeof raw.nPaths === 'number' ? raw.nPaths : undefined;
   const flags: RiskFlag[] = [];
   if (ruin === undefined) {
     flags.push({ level: 'ok', text: 'Awaiting a simulation to assess ruin probability.' });
@@ -66,8 +68,11 @@ function mockFlags(ctx: TweakContext): RiskFlag[] {
   if ((ctx.params.sigma ?? 0) >= 30) {
     flags.push({ level: 'warning', text: 'Volatility ≥ 30% — tail outcomes dominate; consider an IFRS-17 risk-adjustment review.', ref: 'IFRS-17' });
   }
+  if (nPaths && nPaths >= 10_000) {
+    flags.push({ level: 'ok', text: `Metrics use ${nPaths.toLocaleString()} seeded GBM paths with explicit uncertainty bands.`, ref: 'Model audit' });
+  }
   flags.push({ level: 'ok', text: 'This horizon barrier metric is not a standalone Solvency II SCR calculation.', ref: 'Decision-support only' });
-  return flags;
+  return flags.slice(0, 3);
 }
 
 function validate(json: unknown, fallback: RiskResult): RiskResult {
@@ -93,7 +98,15 @@ export async function runRisk(ctx: TweakContext, onEvent: OnEvent): Promise<Risk
     const res = await chat({
       messages: [
         { role: 'system', content: SYSTEM },
-        { role: 'user', content: JSON.stringify({ templateId: ctx.templateId, params: ctx.params, metrics: ctx.metrics }) },
+        {
+          role: 'user',
+          content: JSON.stringify({
+            templateId: ctx.templateId,
+            params: ctx.params,
+            metrics: ctx.metrics,
+            modelAudit: summarizeRawForAgents(ctx.raw),
+          }),
+        },
       ],
       responseFormat: RESPONSE_FORMAT,
       reasoningEffort: 'low',

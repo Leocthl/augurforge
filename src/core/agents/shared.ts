@@ -92,6 +92,39 @@ export function describeInput(input: PipelineInput): string {
   return bits.join('\n') || 'No structured input provided.';
 }
 
+export function summarizeRawForAgents(raw: Record<string, unknown> | undefined): Record<string, unknown> {
+  if (!raw) return {};
+  const keys = [
+    'modelKind',
+    'modelFamily',
+    'assumptions',
+    'calibration',
+    'monitoring',
+    'nPaths',
+    'renderPathCount',
+    'conePathCount',
+    'steps',
+    'stepsPerYear',
+    'renderStepsPerYear',
+    'seed',
+    'barrier',
+    'barrierCorrection',
+    'antitheticVariates',
+    'uncertainty',
+    'warnings',
+    'parityResidual',
+    'impliedVolatilityFromCall',
+    'dividendYield',
+  ];
+  const out: Record<string, unknown> = {};
+  for (const key of keys) {
+    if (key in raw) out[key] = raw[key];
+  }
+  if (Array.isArray(raw.terminal)) out.terminalSampleSize = raw.terminal.length;
+  if (Array.isArray(raw.losses)) out.lossSampleSize = raw.losses.length;
+  return out;
+}
+
 /** Percent helper for narrative mock text. */
 export function pct(n: number, digits = 1): string {
   return `${n.toFixed(digits)}%`;

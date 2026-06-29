@@ -1,7 +1,7 @@
 import type { OnEvent, ProseResult } from '../contract';
 import { chat } from '../cerebras';
 import type { TweakContext } from '../pipeline';
-import { errMsg, isAbortError } from './shared';
+import { errMsg, isAbortError, summarizeRawForAgents } from './shared';
 
 const SYSTEM =
   'You are AugurForge Sensitivity. In 2 concise sentences, explain why the deterministic metrics moved and which input dominates. ' +
@@ -14,7 +14,7 @@ function mockText(ctx: TweakContext): string {
       const dir = ctx.changed.to >= ctx.changed.from ? 'raising' : 'lowering';
       return (
         `${dir} ${ctx.changed.label ?? ctx.changed.id} moved the call price to ${metric}. ` +
-        `Moneyness and volatility dominate this no-dividend European option sandbox; rate and maturity tune discounting and time value.`
+        `Moneyness and volatility dominate this European option sandbox; rate, dividend yield, and maturity tune discounting and time value.`
       );
     }
     return (
@@ -47,7 +47,16 @@ export async function runSensitivity(ctx: TweakContext, onEvent: OnEvent): Promi
       {
         messages: [
           { role: 'system', content: SYSTEM },
-          { role: 'user', content: JSON.stringify({ templateId: ctx.templateId, params: ctx.params, metrics: ctx.metrics, changed: ctx.changed }) },
+          {
+            role: 'user',
+            content: JSON.stringify({
+              templateId: ctx.templateId,
+              params: ctx.params,
+              metrics: ctx.metrics,
+              changed: ctx.changed,
+              modelAudit: summarizeRawForAgents(ctx.raw),
+            }),
+          },
         ],
         stream: true,
         reasoningEffort: 'low',

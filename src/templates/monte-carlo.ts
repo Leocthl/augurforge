@@ -38,136 +38,103 @@ import {
   type FieldRanges,
   ribbonLines,
 } from '../viz/three3d';
+import { simulateGbm } from '../core/math/gbm';
+import { clamp, sortedQuantile } from '../core/math/statistics';
 
 // --- fixed simulation constants ---------------------------------------------
 const S0 = 100;
 const BARRIER = 50; // ruin = a path''s running minimum falls below this
-const N_PATHS = 500;
-const STEPS_PER_YEAR = 12;
+const N_PATHS = 10_000;
+const RENDER_PATHS = 160;
+const CONE_PATHS = 2_000;
+const STEPS_PER_YEAR = 252;
+const RENDER_STEPS_PER_YEAR = 12;
+const DEFAULT_SEED = 2027;
 
 // --- numerics ---------------------------------------------------------------
-
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function gaussian(rng: () => number): number {
-  let u = 0;
-  let v = 0;
-  while (u === 0) u = rng();
-  while (v === 0) v = rng();
-  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
 
 function finiteParam(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
-function percentile(sortedAsc: number[], p: number): number {
-  if (!sortedAsc.length) return NaN;
-  const rank = clamp(p, 0, 100) / 100 * (sortedAsc.length - 1);
-  const lo = Math.floor(rank);
-  const hi = Math.ceil(rank);
-  if (lo === hi) return sortedAsc[lo];
-  return sortedAsc[lo] + (sortedAsc[hi] - sortedAsc[lo]) * (rank - lo);
-}
-
-const fmtPct = (x: number) => `${x.toFixed(1)}%`;
+const fmtPct = (x: number) => `${(x * 100).toFixed(1)}%`;
 const fmtMoney = (x: number) => `$${x.toFixed(0)}`;
+const fmtYears = (x: number | null) => (x == null ? 'n/a' : `${x.toFixed(1)} yr`);
 
 // --- run() ------------------------------------------------------------------
 
 function run(params: ParamSet): SimResult {
-  const sigmaPct = clamp(finiteParam(params.sigma, 18), 5, 40);
+  const sigmaPct = clamp(finiteParam(params.sigma, 18), 0, 60);
   const driftPct = clamp(finiteParam(params.drift, 7), -5, 15);
   const sigma = sigmaPct / 100;
   const mu = driftPct / 100;
   const horizon = Math.round(clamp(finiteParam(params.horizon, 30), 5, 40));
-  const steps = horizon * STEPS_PER_YEAR;
-  const dt = 1 / STEPS_PER_YEAR;
-  const logDrift = (mu - 0.5 * sigma * sigma) * dt;
-  const vol = sigma * Math.sqrt(dt);
+  const seed = Math.round(clamp(finiteParam(params.seed, DEFAULT_SEED), 1, 99_999));
+  const sim = simulateGbm({
+    s0: S0,
+    barrier: BARRIER,
+    mu,
+    sigma,
+    horizonYears: horizon,
+    stepsPerYear: STEPS_PER_YEAR,
+    nPaths: N_PATHS,
+    seed,
+    renderPathCount: RENDER_PATHS,
+    conePathCount: CONE_PATHS,
+    renderStepsPerYear: RENDER_STEPS_PER_YEAR,
+  });
 
-  const rng = mulberry32(0x9e3779b9); // fixed seed → deterministic given params
-  const paths: number[][] = [];
-  const mins: number[] = [];
-  const terminals: number[] = [];
-
-  for (let p = 0; p < N_PATHS; p++) {
-    const path = new Array<number>(steps + 1);
-    path[0] = S0;
-    let s = S0;
-    let min = S0;
-    for (let t = 1; t <= steps; t++) {
-      s = s * Math.exp(logDrift + vol * gaussian(rng));
-      path[t] = s;
-      if (s < min) min = s;
-    }
-    paths.push(path);
-    mins.push(min);
-    terminals.push(s);
-  }
-
-  // Time axis (years).
-  const time = new Array<number>(steps + 1);
-  for (let t = 0; t <= steps; t++) time[t] = t * dt;
-
-  // Percentile cones over time.
   const pcts = [5, 25, 50, 75, 95] as const;
-  const cone: Record<number, number[]> = { 5: [], 25: [], 50: [], 75: [], 95: [] };
-  const column = new Array<number>(N_PATHS);
-  for (let t = 0; t <= steps; t++) {
-    for (let p = 0; p < N_PATHS; p++) column[p] = paths[p][t];
-    const sorted = column.slice().sort((a, b) => a - b);
-    for (const q of pcts) cone[q].push(percentile(sorted, q));
-  }
-
-  const series: Series[] = pcts.map((q) => ({ name: `p${q}`, x: time, y: cone[q] }));
-
-  // Metrics.
-  const sortedTerminal = terminals.slice().sort((a, b) => a - b);
-  const ruinCount = mins.filter((m) => m < BARRIER).length;
-  const pRuin = (ruinCount / N_PATHS) * 100;
-  const p5Terminal = percentile(sortedTerminal, 5);
-  const var95 = Math.max(0, ((S0 - p5Terminal) / S0) * 100);
-  const median = percentile(sortedTerminal, 50);
-
-  const vMin = Math.min(BARRIER * 0.7, percentile(sortedTerminal, 1) * 0.95);
-  const vMax = percentile(sortedTerminal, 99) * 1.05;
+  const series: Series[] = pcts.map((q) => ({ name: `p${q}`, x: sim.time, y: sim.percentiles[q] }));
+  const sortedTerminal = [...sim.terminal].sort((a, b) => a - b);
+  const vMin = Math.max(1, Math.min(BARRIER * 0.7, sortedQuantile(sortedTerminal, 0.01) * 0.95));
+  const vMax = Math.max(S0 * 1.2, sortedQuantile(sortedTerminal, 0.99) * 1.05);
 
   return {
-    paths,
+    paths: sim.paths,
     series,
     metrics: [
-      { id: 'p_ruin', label: 'P(ruin)', value: fmtPct(pRuin) },
-      { id: 'var_95', label: '95% VaR', value: fmtPct(var95) },
-      { id: 'median', label: 'Median outcome', value: fmtMoney(median) },
+      { id: 'p_ruin', label: 'P(ruin)', value: fmtPct(sim.metrics.ruinProbability) },
+      { id: 'var_95', label: '95% VaR', value: fmtPct(sim.metrics.var95) },
+      { id: 'var_99', label: '99% VaR', value: fmtPct(sim.metrics.var99) },
+      { id: 'es_95', label: '95% ES', value: fmtPct(sim.metrics.es95) },
+      { id: 'median', label: 'Median outcome', value: fmtMoney(sim.metrics.medianTerminal) },
+      { id: 'max_dd_95', label: 'p95 max drawdown', value: fmtPct(sim.metrics.maxDrawdownP95) },
+      { id: 'median_ruin_time', label: 'Median ruin time', value: fmtYears(sim.metrics.medianRuinTime) },
     ],
     raw: {
-      time,
+      time: sim.time,
       s0: S0,
       barrier: BARRIER,
-      terminal: terminals,
+      terminal: sim.terminal,
+      losses: sim.losses,
+      maxDrawdowns: sim.maxDrawdowns,
+      ruinTimes: sim.ruinTimes,
       vMin,
       vMax,
-      tMax: time[time.length - 1],
+      tMax: sim.time[sim.time.length - 1],
       sigma,
       mu,
       horizon,
-      steps,
-      stepsPerYear: STEPS_PER_YEAR,
-      nPaths: N_PATHS,
-      monitoring: 'monthly-grid',
+      steps: sim.metadata.steps,
+      stepsPerYear: sim.metadata.stepsPerYear,
+      renderStepsPerYear: sim.metadata.renderStepsPerYear,
+      nPaths: sim.metadata.nPaths,
+      renderPathCount: sim.metadata.renderPathCount,
+      conePathCount: sim.metadata.conePathCount,
+      seed: sim.metadata.seed,
+      modelKind: sim.metadata.modelKind,
+      modelFamily: 'GBM',
+      assumptions: sim.metadata.assumptions,
+      calibration: sim.metadata.calibration,
+      monitoring: sim.metadata.monitoring,
+      antitheticVariates: sim.metadata.antitheticVariates,
+      barrierCorrection: sim.metadata.barrierCorrection,
+      uncertainty: {
+        ruinProbability: sim.metrics.ruinProbabilityCi,
+        var95: sim.metrics.var95Ci,
+        es95: sim.metrics.es95Ci,
+      },
     },
   };
 }
@@ -286,22 +253,23 @@ function render3D(el: HTMLElement, sim: SimResult, opts: RenderOpts): Renderer {
 
 const spec: DashboardSpec = {
   templateId: 'monte-carlo',
-  title: 'Monte Carlo — Portfolio Ruin (GBM)',
-  subtitle: 'Geometric Brownian motion · 500 paths · simulated client-side',
+  title: 'Monte Carlo - Portfolio Ruin (GBM)',
+  subtitle: 'Daily GBM · 10,000 metric paths · Brownian bridge barrier correction',
   views: ['2d', '3d'],
   defaultView: '2d',
   sliders: [
-    { id: 'sigma', label: 'Volatility (σ)', min: 5, max: 40, step: 1, value: 18, unit: '%' },
+    { id: 'sigma', label: 'Volatility (sigma)', min: 0, max: 60, step: 1, value: 18, unit: '%' },
     { id: 'drift', label: 'Drift (μ)', min: -5, max: 15, step: 1, value: 7, unit: '%' },
     { id: 'horizon', label: 'Horizon', min: 5, max: 40, step: 1, value: 30, unit: 'yr' },
+    { id: 'seed', label: 'Seed', min: 1, max: 99999, step: 1, value: DEFAULT_SEED, unit: '' },
   ],
   explainer: {
     entry:
       'This shows many possible market journeys over time. Most paths grow, but some dip badly — ' +
-      'the share that crosses the monthly-monitored floor is the "ruin" chance. Turn volatility up and the danger grows.',
+      'the share that crosses the continuously approximated floor is the "ruin" chance. Turn volatility up and the danger grows.',
     expert:
-      'A monthly-stepped GBM ensemble of 500 paths. The fan shows the 5–95 and 25–75 interpolated percentile cones; the histogram is ' +
-      'the terminal distribution. P(ruin) is the fraction breaching the grid-monitored barrier; 95% VaR is the terminal 5th-percentile loss.',
+      'A daily-stepped GBM ensemble of 10,000 paths with antithetic variates. Barrier breaches use a Brownian bridge correction between daily endpoints; ' +
+      'rendered trajectories are sampled separately from the full metric path set. VaR/ES are terminal-loss distribution metrics.',
   },
 };
 

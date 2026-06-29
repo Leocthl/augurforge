@@ -49,6 +49,8 @@ export interface TweakContext {
   params: ParamSet;
   /** Current headline metrics from template.run() — what the agents interpret. */
   metrics: Metric[];
+  /** Compact model/audit data from SimResult.raw; agents must not invent beyond it. */
+  raw?: Record<string, unknown>;
   depth?: 'entry' | 'expert';
   /** The slider that just changed (for the sensitivity narrative). */
   changed?: { id: string; label?: string; from: number; to: number };

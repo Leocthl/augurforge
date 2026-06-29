@@ -43,10 +43,12 @@ const PARAMS_SCHEMA = objectSchema(
     sigma: { type: 'number' },
     drift: { type: 'number' },
     horizon: { type: 'number' },
+    seed: { type: 'number' },
     spot: { type: 'number' },
     strike: { type: 'number' },
     volatility: { type: 'number' },
     rate: { type: 'number' },
+    dividendYield: { type: 'number' },
     maturity: { type: 'number' },
   },
   [],
@@ -99,9 +101,10 @@ const RESPONSE_FORMAT = jsonSchema(
 );
 
 const MONTE_CARLO_SLIDERS: SliderDef[] = [
-  { id: 'sigma', label: 'Volatility (sigma)', min: 5, max: 40, step: 1, value: 18, unit: '%' },
+  { id: 'sigma', label: 'Volatility (sigma)', min: 0, max: 60, step: 1, value: 18, unit: '%' },
   { id: 'drift', label: 'Drift (mu)', min: -5, max: 15, step: 1, value: 7, unit: '%' },
   { id: 'horizon', label: 'Horizon', min: 5, max: 40, step: 1, value: 30, unit: 'yr' },
+  { id: 'seed', label: 'Seed', min: 1, max: 99999, step: 1, value: 2027, unit: '' },
 ];
 
 function paramsFromSliders(sliders: SliderDef[]): ParamSet {
